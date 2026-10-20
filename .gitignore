@@ -1,0 +1,14 @@
+# Build output
+*.exe
+dist/
+
+# Downloaded runtime and models (see tools/fetch-runtime.ps1 and the in-app downloader)
+runtime/
+models/
+*.gguf
+*.part
+
+# Per-user data
+QwenPad.ini
+notes/
+logs/

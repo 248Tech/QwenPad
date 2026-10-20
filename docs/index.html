@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QwenPad: Private Notepad for Windows with a Local AI Assistant (Offline)</title>
+<meta name="description" content="QwenPad is a free, open-source Notepad alternative for Windows with a built-in offline AI writing assistant. Rewrite, fix grammar, summarize and continue text with Qwen3.5 running locally via llama.cpp. Sticky notes, dark mode, portable, ~100 KB.">
+<meta name="keywords" content="notepad with AI, offline AI text editor, local LLM notepad, Windows notepad alternative, private AI writing assistant, Qwen3.5, llama.cpp GUI, GGUF, sticky notes, portable text editor, open source">
+<meta name="author" content="248Tech">
+<meta name="theme-color" content="#7c4dff">
+<link rel="canonical" href="https://248tech.github.io/QwenPad/">
+<link rel="icon" type="image/png" href="images/icon-256.png">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="QwenPad">
+<meta property="og:title" content="QwenPad: a tiny, private Notepad with a local AI">
+<meta property="og:description" content="Rewrite, fix, summarize and continue text with Qwen3.5, 100% offline on your Windows PC. Free and open source.">
+<meta property="og:url" content="https://248tech.github.io/QwenPad/">
+<meta property="og:image" content="https://248tech.github.io/QwenPad/images/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="QwenPad: a tiny, private Notepad with a local AI">
+<meta name="twitter:description" content="Offline AI writing assistant for Windows, powered by Qwen3.5 + llama.cpp. Free, open source, portable.">
+<meta name="twitter:image" content="https://248tech.github.io/QwenPad/images/social-preview.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "QwenPad",
+  "description": "A lightweight Notepad for Windows with a built-in offline AI writing assistant (Qwen3.5 via llama.cpp), sticky notes and dark mode.",
+  "applicationCategory": "UtilitiesApplication",
+  "applicationSubCategory": "Text editor",
+  "operatingSystem": "Windows 10, Windows 11",
+  "softwareVersion": "1.2.0",
+  "license": "https://opensource.org/licenses/MIT",
+  "url": "https://248tech.github.io/QwenPad/",
+  "downloadUrl": "https://github.com/248Tech/QwenPad/releases/latest",
+  "codeRepository": "https://github.com/248Tech/QwenPad",
+  "image": "https://248tech.github.io/QwenPad/images/qwenpad-dark.png",
+  "author": { "@type": "Organization", "name": "248Tech", "url": "https://github.com/248Tech" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "featureList": "Offline AI rewrite, grammar fix, summarize, continue writing; sticky notes with AI; dark mode; portable; UTF-8/UTF-16/ANSI and CRLF/LF support"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Does QwenPad work offline?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. After a one-time model download, QwenPad runs Qwen3.5 locally through llama.cpp and only talks to 127.0.0.1. No text ever leaves your PC." } },
+    { "@type": "Question", "name": "Do I need an NVIDIA GPU?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. An NVIDIA GPU (CUDA 12) makes it faster, but llama.cpp falls back to the CPU. The Qwen3.5 4B model is recommended for CPU-only PCs." } },
+    { "@type": "Question", "name": "Is QwenPad free?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. QwenPad is free and open source under the MIT license." } },
+    { "@type": "Question", "name": "Can I use my own GGUF model?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Put any chat-capable .gguf file in the models folder and select it under Qwen > Model." } }
+  ]
+}
+</script>
+<style>
+  :root { --bg: #f7f7fb; --fg: #1d1f2b; --muted: #5d6075; --card: #ffffff; --line: #e5e5ef; --accent: #7c4dff; --accent-fg: #ffffff; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #12131c; --fg: #ececf3; --muted: #a3a6bb; --card: #1b1d2a; --line: #2a2d3e; --accent: #9b7bff; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.6 "Segoe UI", system-ui, -apple-system, sans-serif; }
+  a { color: var(--accent); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+  header.hero { text-align: center; padding: 64px 0 24px; }
+  header.hero img.logo { width: 88px; height: 88px; }
+  h1 { font-size: clamp(2.2rem, 6vw, 3.4rem); margin: 12px 0 4px; letter-spacing: -0.02em; }
+  .tagline { font-size: clamp(1.1rem, 2.6vw, 1.35rem); color: var(--muted); max-width: 720px; margin: 0 auto 28px; }
+  .cta { display: inline-flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .btn { display: inline-block; padding: 13px 26px; border-radius: 10px; font-weight: 600; text-decoration: none; border: 1px solid var(--line); color: var(--fg); background: var(--card); }
+  .btn.primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; }
+  .meta { color: var(--muted); font-size: 0.9rem; margin-top: 12px; }
+  .shot { margin: 36px auto 0; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+  .shot img { display: block; width: 100%; height: auto; }
+  section { padding: 56px 0 8px; }
+  h2 { font-size: 1.8rem; margin: 0 0 18px; text-align: center; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  .card h3 { margin: 0 0 6px; font-size: 1.08rem; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.97rem; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  kbd { font: 0.85em Consolas, monospace; padding: 2px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; background: var(--bg); white-space: nowrap; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: center; }
+  .two img { width: 100%; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+  details { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin-bottom: 10px; }
+  summary { font-weight: 600; cursor: pointer; }
+  footer { text-align: center; color: var(--muted); padding: 48px 0 40px; font-size: 0.92rem; }
+  @media (max-width: 760px) { .two { grid-template-columns: 1fr; } th:nth-child(3), td:nth-child(3) { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <img class="logo" src="images/icon-256.png" alt="QwenPad logo">
+    <h1>QwenPad</h1>
+    <p class="tagline">A tiny, private Notepad for Windows with a <strong>local AI writing assistant</strong>. Rewrite, fix, summarize and continue text with Qwen3.5, 100% offline.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/248Tech/QwenPad/releases/latest">⬇ Download for Windows</a>
+      <a class="btn" href="https://github.com/248Tech/QwenPad">★ View on GitHub</a>
+    </div>
+    <p class="meta">Free &amp; open source (MIT) · Windows 10/11 · Portable, no installer</p>
+    <div class="shot"><img src="images/qwenpad-dark.png" alt="QwenPad editor in dark mode with AI-generated sticky note" width="1712" height="802"></div>
+  </header>
+
+  <section>
+    <h2>Fast like Notepad. Smart like an AI editor. Private like paper.</h2>
+    <div class="grid">
+      <div class="card"><h3>⚡ Tiny and instant</h3><p>A ~100 KB native app that opens in well under a second. No Electron, no installer, no account.</p></div>
+      <div class="card"><h3>🔒 Truly offline</h3><p>Qwen3.5 runs on your PC through llama.cpp. QwenPad only talks to 127.0.0.1, so your text never leaves the machine.</p></div>
+      <div class="card"><h3>✦ AI where you type</h3><p>Rewrite, fix grammar, change tone, translate, summarize or continue with one shortcut. It streams live and undoes in one step.</p></div>
+      <div class="card"><h3>🗒️ Sticky notes</h3><p>Desktop notes in six colors, with the same AI built in. Saved as plain text files.</p></div>
+      <div class="card"><h3>🌙 Dark mode</h3><p>Follows Windows automatically, from the title bar and menus to the scrollbars and notes.</p></div>
+      <div class="card"><h3>🎒 Portable</h3><p>Unzip anywhere, even a USB stick. Settings, notes and models stay in one folder.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Your keyboard, supercharged</h2>
+    <div class="two">
+      <img src="images/ai-streaming.png" alt="Qwen fixing grammar in QwenPad, streaming live" loading="lazy" width="1000" height="690">
+      <table>
+        <tr><th>Shortcut</th><th>What it does</th></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>K</kbd></td><td>Ask Qwen anything about the selection, or have it write at the cursor</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>Continue writing</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd></td><td>Improve writing</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd></td><td>Fix spelling &amp; grammar</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Stop generating</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Pick your model</h2>
+    <table>
+      <tr><th>Model</th><th>Download</th><th>Best for</th></tr>
+      <tr><td><strong>Qwen3.5 9B</strong> (recommended)</td><td>5.3 GB</td><td>Best quality; ~8 GB free RAM</td></tr>
+      <tr><td><strong>Qwen3.5 4B</strong></td><td>2.6 GB</td><td>Faster; low-RAM or CPU-only PCs</td></tr>
+      <tr><td><strong>Qwen3.5 9B Abliterated</strong></td><td>5.2 GB</td><td>Community variant with refusal behavior removed</td></tr>
+      <tr><td>Any GGUF</td><td>Your choice</td><td>Drop a .gguf into <code>models\</code></td></tr>
+    </table>
+    <p class="meta" style="text-align:center">Downloaded once from Hugging Face on first run and verified with SHA-256. An NVIDIA GPU is optional.</p>
+  </section>
+
+  <section>
+    <h2>Light or dark</h2>
+    <div class="shot" style="margin-top:0"><img src="images/qwenpad-light.png" alt="QwenPad light mode with sticky notes" loading="lazy" width="1712" height="802"></div>
+  </section>
+
+  <section>
+    <h2>FAQ</h2>
+    <details><summary>Does QwenPad work offline?</summary><p>Yes. After a one-time model download, it runs Qwen3.5 locally through llama.cpp and only talks to 127.0.0.1.</p></details>
+    <details><summary>Do I need an NVIDIA GPU?</summary><p>No. A CUDA GPU makes it faster, but llama.cpp falls back to the CPU. Choose the 4B model on CPU-only PCs.</p></details>
+    <details><summary>Is it free?</summary><p>Yes, free and open source under the MIT license.</p></details>
+    <details><summary>Can I use my own model or server?</summary><p>Yes. Put any chat-capable GGUF in <code>models\</code>, or point QwenPad at any OpenAI-compatible server (llama.cpp, LM Studio, Ollama) in Qwen &gt; Settings.</p></details>
+  </section>
+
+  <footer>
+    <p><a href="https://github.com/248Tech/QwenPad/releases/latest">Download</a> · <a href="https://github.com/248Tech/QwenPad">Source</a> · <a href="https://github.com/248Tech/QwenPad/issues">Report an issue</a></p>
+    <p>QwenPad is an independent open-source project by 248Tech, not affiliated with Alibaba Cloud (Qwen) or Microsoft.</p>
+  </footer>
+</div>
+</body>
+</html>

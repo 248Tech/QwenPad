@@ -1,0 +1,36 @@
+name: Bug report
+description: Something isn't working in QwenPad
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: QwenPad version
+      description: Help > About QwenPad
+      placeholder: "1.2.0"
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Windows version, GPU and RAM
+      placeholder: "Windows 11 23H2, RTX 3060 12 GB, 16 GB RAM"
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      description: Shown in the status bar or Qwen > Model
+      placeholder: "Qwen3.5 9B"
+  - type: textarea
+    id: log
+    attributes:
+      label: Server log (if the AI isn't working)
+      description: Qwen > Show Server Log. Paste the last ~30 lines.
+      render: text
