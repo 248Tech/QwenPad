@@ -32,6 +32,7 @@ namespace QwenPad
         readonly List<Label> headerButtons = new List<Label>();
         internal int ColorIndex { get; private set; }
         internal bool Busy { get; private set; }
+        /// <summary>Whether the user wants this note shown. Saved instead of Form.Visible, which can drift from the real window.</summary>
         internal bool WantsVisible = true;
         internal bool AllowClose;
 
@@ -40,7 +41,11 @@ namespace QwenPad
             this.mgr = mgr;
             Id = id;
             FormBorderStyle = FormBorderStyle.None;
-            ShowInTaskbar = false;
+            // Each note is its own top-level window with a taskbar button; being in the same process,
+            // Windows groups them under the QwenPad icon.
+            ShowInTaskbar = true;
+            KeyPreview = false;
+            try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
             StartPosition = FormStartPosition.Manual;
             Font = new Font("Segoe UI", 10.5f);
             Size = new Size(Font.Height * 15, Font.Height * 13);
@@ -69,7 +74,7 @@ namespace QwenPad
             Body.ScrollBars = ScrollBars.Vertical;
             Body.AcceptsTab = true;
             Body.MaxLength = 0;
-            Body.TextChanged += delegate { mgr.MarkDirty(this); };
+            Body.TextChanged += delegate { mgr.MarkDirty(this); UpdateCaption(); };
             Body.KeyDown += Body_KeyDown;
 
             Controls.Add(Body);
@@ -99,7 +104,21 @@ namespace QwenPad
             Move += delegate { mgr.MarkDirty(this); };
             Resize += delegate { mgr.MarkDirty(this); Invalidate(); };
             Body.HandleCreated += delegate { Theme.ApplyScrollbars(Body); };
+            // Only the user hides notes (✕, Ctrl+W, Hide All). If anything else hides one, show it again.
+            VisibleChanged += delegate
+            {
+                if (!Visible && WantsVisible && !AllowClose && IsHandleCreated && !IsDisposed)
+                    BeginInvoke((Action)(() => { if (WantsVisible && !AllowClose && !IsDisposed && !Visible) Show(); }));
+            };
             SetColor(0);
+        }
+
+        /// <summary>Taskbar / Alt+Tab caption: the note's first line.</summary>
+        void UpdateCaption()
+        {
+            string t = Title;
+            string caption = t == "(empty note)" ? "Sticky Note" : t + " - Sticky Note";
+            if (Text != caption) Text = caption;
         }
 
         /// <summary>Re-applies colors after a light/dark switch.</summary>
@@ -171,7 +190,7 @@ namespace QwenPad
         {
             var b = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
             return string.Format(CultureInfo.InvariantCulture, "#note x={0} y={1} w={2} h={3} color={4} top={5} visible={6}",
-                b.X, b.Y, b.Width, b.Height, ColorIndex, TopMost ? 1 : 0, Visible ? 1 : 0);
+                b.X, b.Y, b.Width, b.Height, ColorIndex, TopMost ? 1 : 0, WantsVisible ? 1 : 0);
         }
 
         internal void ApplyMeta(string line)
@@ -235,24 +254,34 @@ namespace QwenPad
 
         void Body_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.Escape && Busy && CancelStreaming != null)
+            if (e.Control && e.KeyCode == Keys.A) { Body.SelectAll(); e.Handled = e.SuppressKeyPress = true; return; }
+            // While Qwen is writing, block editing shortcuts (typing is blocked by read-only).
+            if (Busy && e.Control && e.KeyCode != Keys.C) e.Handled = e.SuppressKeyPress = true;
+        }
+
+        /// <summary>Note shortcuts, handled at window level so they work wherever the focus is inside the note.</summary>
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            switch (keyData)
             {
-                CancelStreaming();
-                e.Handled = e.SuppressKeyPress = true;
-                return;
+                case Keys.Escape:
+                    if (Busy && CancelStreaming != null) { CancelStreaming(); return true; }
+                    break;
+                case Keys.Control | Keys.K:
+                    if (Busy) SetStatus("✦ Qwen is still writing… (Esc to stop)");
+                    else mgr.Ask(this);
+                    return true;
+                case Keys.Control | Keys.N:
+                    mgr.New("", Bounds);
+                    return true;
+                case Keys.Control | Keys.D:
+                    if (!Busy) mgr.Delete(this);
+                    return true;
+                case Keys.Control | Keys.W:
+                    mgr.HideNote(this);
+                    return true;
             }
-            if (!e.Control) return;
-            if (Busy && e.KeyCode != Keys.A && e.KeyCode != Keys.C) { e.Handled = e.SuppressKeyPress = true; return; }
-            switch (e.KeyCode)
-            {
-                case Keys.A: Body.SelectAll(); break;
-                case Keys.K: mgr.Ask(this); break;
-                case Keys.N: mgr.New("", Bounds); break;
-                case Keys.D: mgr.Delete(this); break;
-                case Keys.W: mgr.HideNote(this); break;
-                default: return;
-            }
-            e.Handled = e.SuppressKeyPress = true;
+            return base.ProcessCmdKey(ref msg, keyData);
         }
 
         void DragWindow(object sender, MouseEventArgs e)
@@ -268,6 +297,8 @@ namespace QwenPad
             {
                 var cp = base.CreateParams;
                 cp.ClassStyle |= CS_DROPSHADOW;
+                // Lets the borderless note minimize/restore from its taskbar button and show the taskbar window menu.
+                cp.Style |= WS_MINIMIZEBOX | WS_SYSMENU;
                 return cp;
             }
         }
@@ -303,7 +334,7 @@ namespace QwenPad
 
         const int WM_NCHITTEST = 0x84, WM_NCLBUTTONDOWN = 0xA1, HTCLIENT = 1, HTCAPTION = 2;
         const int HTLEFT = 10, HTRIGHT = 11, HTBOTTOM = 15, HTBOTTOMLEFT = 16, HTBOTTOMRIGHT = 17;
-        const int CS_DROPSHADOW = 0x20000;
+        const int CS_DROPSHADOW = 0x20000, WS_MINIMIZEBOX = 0x20000, WS_SYSMENU = 0x80000;
 
         [DllImport("user32.dll")] static extern bool ReleaseCapture();
         [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
@@ -411,6 +442,8 @@ namespace QwenPad
 
         public void ShowNote(StickyNote note)
         {
+            note.WantsVisible = true;
+            if (note.WindowState == FormWindowState.Minimized) note.WindowState = FormWindowState.Normal;
             note.Show();
             note.Activate();
             MarkDirty(note);
@@ -418,13 +451,14 @@ namespace QwenPad
 
         public void HideNote(StickyNote note)
         {
+            note.WantsVisible = false;
             note.Hide();
             MarkDirty(note);
         }
 
-        public void ShowAll() { foreach (var n in notes) { n.Show(); MarkDirty(n); } }
+        public void ShowAll() { foreach (var n in notes) { n.WantsVisible = true; n.Show(); MarkDirty(n); } }
         public void HideAll() { foreach (var n in notes) HideNote(n); }
-        public int CountVisible() { int c = 0; foreach (var n in notes) if (n.Visible) c++; return c; }
+        public int CountVisible() { int c = 0; foreach (var n in notes) if (n.WantsVisible) c++; return c; }
 
         public void Delete(StickyNote note)
         {
@@ -440,7 +474,11 @@ namespace QwenPad
 
         public void InsertIntoDocument(string text) { insertIntoDocument(text); }
 
-        public void Ask(StickyNote note) { if (!note.Busy) askQwen(note); }
+        public void Ask(StickyNote note)
+        {
+            if (note.Busy) note.SetStatus("✦ Qwen is still writing… (Esc to stop)");
+            else askQwen(note);
+        }
 
         public void ApplyTheme() { foreach (var n in notes) n.ApplyTheme(); }
 

@@ -74,7 +74,15 @@ namespace QwenPad
             Controls.Add(table);
             AcceptButton = ok;
             CancelButton = cancel;
-            Shown += delegate { input.Focus(); input.SelectAll(); };
+            Shown += delegate
+            {
+                // Owners like sticky notes can sit at a screen edge; keep the dialog fully visible and in front.
+                var wa = Screen.FromControl(this).WorkingArea;
+                Location = new Point(Math.Max(wa.Left, Math.Min(Left, wa.Right - Width)), Math.Max(wa.Top, Math.Min(Top, wa.Bottom - Height)));
+                Activate();
+                input.Focus();
+                input.SelectAll();
+            };
         }
     }
 

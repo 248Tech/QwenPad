@@ -1126,7 +1126,18 @@ namespace QwenPad
         /// <summary>Ctrl+K inside a sticky note: rewrite the note's selection, or write at its cursor.</summary>
         void AskInNote(StickyNote note)
         {
-            if (serverState != "ready") { EnsureReady(); return; }
+            // Report readiness in the note itself; the main window's status bar may not even be visible.
+            if (serverState == "loading") { note.SetStatus("⏳ Qwen is still loading the model…"); return; }
+            if (serverState != "ready")
+            {
+                if (MessageBox.Show(note, "The local Qwen model isn't running. Start it now?", AppName,
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    StartServer(true);
+                    if (serverState == "loading") note.SetStatus("⏳ Starting Qwen… press Ctrl+K again when ready");
+                }
+                return;
+            }
             var body = note.Body;
             bool hasSel = body.SelectionLength > 0;
             using (var dlg = new InputDialog("Ask Qwen",
@@ -1134,7 +1145,10 @@ namespace QwenPad
                 lastAsk, 460, "&Replace the selection with the result", lastAskReplace, hasSel))
             {
                 dlg.Validator = v => v.Trim().Length == 0 ? "Type an instruction, e.g. \"turn this into a checklist\"." : null;
+                dlg.TopMost = note.TopMost;
+                note.SetStatus("");
                 if (dlg.ShowDialog(note) != DialogResult.OK || note.IsDisposed) return;
+                note.Activate();
                 lastAsk = dlg.Value.Trim();
                 if (hasSel) lastAskReplace = dlg.Checked;
 
@@ -1255,8 +1269,8 @@ namespace QwenPad
                 var note = n;
                 items.Add(new ToolStripMenuItem(note.Title.Replace("&", "&&"), StickyNote.Swatch(note.ColorIndex), delegate { notes.ShowNote(note); })
                 {
-                    Checked = note.Visible,
-                    ToolTipText = note.Visible ? "Bring to front" : "Show note"
+                    Checked = note.WantsVisible,
+                    ToolTipText = note.WantsVisible ? "Bring to front" : "Show note"
                 });
             }
         }

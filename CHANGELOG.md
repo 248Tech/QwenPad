@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.1] - 2026-10-20
+
+### Fixed
+- **Ctrl+K in sticky notes** now always responds: shortcuts work wherever focus is in the note, and when Qwen isn't ready (loading, offline or still writing) the note says so instead of doing nothing. The Ask dialog stays on-screen and in front.
+- Sticky notes no longer disappear or come back hidden after being minimized or after using Ask Qwen; visibility is saved reliably.
+
+### Changed
+- **Each sticky note is its own window** with a taskbar button, grouped with QwenPad. Minimize/restore from the taskbar, Alt+Tab to it, and the taskbar shows the note's first line.
+
 ## [1.2.0] - 2026-10-20
 
 First public release.
