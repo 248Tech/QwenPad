@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.3] - 2026-10-21
+
+### Fixed
+- **Sticky-note edges are easy to grab.** The resize border is now about 10 px wide (scaled up on high-DPI screens), with double-size corners, and it works over the note's text and header, just like a normal window frame. The top edge and both top corners resize too.
+
 ## [1.2.2] - 2026-10-21
 
 ### Added

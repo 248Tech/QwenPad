@@ -21,7 +21,9 @@ namespace QwenPad
         static readonly int[] DarkHeadRgb = { 0x5A4F2A, 0x33513D, 0x5C3A4C, 0x463B63, 0x30486A, 0x404040 };
         static readonly Image[] swatches = new Image[ColorNames.Length];
         // Resize zones: side borders, a taller bottom strip (holds the grip), corner size, and the top edge of the header.
-        const int Grip = 7, GripBottom = 14, Corner = 20, TopGrip = 5;
+        // Visual padding around the text (the bottom strip holds the grip). The invisible resize zone is wider
+        // and overlaps the child controls, which pass edge hits through to the note (see PassEdgeHit).
+        const int Grip = 7, GripBottom = 14;
         const int EM_GETLINECOUNT = 0xBA;
 
         int baseHeight;        // height the user chose; auto-expansion never shrinks below it
@@ -29,9 +31,9 @@ namespace QwenPad
 
         readonly NoteManager mgr;
         internal readonly string Id;
-        internal readonly TextBox Body = new TextBox();
-        readonly Panel header = new Panel();
-        readonly Label lblStatus = new Label();
+        internal readonly TextBox Body = new EdgeTextBox();
+        readonly Panel header = new EdgePanel();
+        readonly Label lblStatus = new EdgeLabel();
         readonly ContextMenuStrip menu = new ContextMenuStrip();
         readonly ToolStripMenuItem miTop;
         readonly List<Label> headerButtons = new List<Label>();
@@ -71,9 +73,6 @@ namespace QwenPad
             lblStatus.Font = new Font("Segoe UI", 9f);
             header.MouseDown += DragWindow;
             lblStatus.MouseDown += DragWindow;
-            MouseEventHandler topCursor = (s, e) => ((Control)s).Cursor = PointToClient(Cursor.Position).Y < TopGrip ? Cursors.SizeNS : Cursors.Default;
-            header.MouseMove += topCursor;
-            lblStatus.MouseMove += topCursor;
 
             Body.Multiline = true;
             Body.BorderStyle = BorderStyle.None;
@@ -293,7 +292,7 @@ namespace QwenPad
 
         Label HeaderButton(string glyph, string tip, DockStyle dock, EventHandler onClick)
         {
-            var b = new Label
+            var b = new EdgeLabel
             {
                 Text = glyph, Dock = dock, Width = header.Height, TextAlign = ContentAlignment.MiddleCenter,
                 Font = new Font("Segoe UI Symbol", 10f), ForeColor = Color.FromArgb(60, 60, 60), Cursor = Cursors.Hand
@@ -341,10 +340,8 @@ namespace QwenPad
         void DragWindow(object sender, MouseEventArgs e)
         {
             if (e.Button != MouseButtons.Left) return;
-            // The top few pixels of the header resize the note; the rest drags it.
-            int hit = PointToClient(Cursor.Position).Y < TopGrip ? HTTOP : HTCAPTION;
             ReleaseCapture();
-            SendMessage(Handle, WM_NCLBUTTONDOWN, (IntPtr)hit, IntPtr.Zero);
+            SendMessage(Handle, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
         }
 
         protected override CreateParams CreateParams
@@ -373,21 +370,52 @@ namespace QwenPad
             }
         }
 
-        /// <summary>The padding around the text box acts as a resize border.</summary>
+        /// <summary>Width of the invisible resize border; about 10 px at 100% scaling, larger on high-DPI screens.</summary>
+        int EdgeZone { get { return Math.Max(10, Font.Height / 2); } }
+
+        /// <summary>Which resize edge (if any) a client point is on. Corners get double-size zones.</summary>
+        internal int HitZone(Point p)
+        {
+            int w = ClientSize.Width, h = ClientSize.Height, z = EdgeZone, c = z * 2;
+            int zTop = Math.Max(5, z / 2);   // thinner at the top so the header buttons stay clickable
+            bool left = p.X < z, right = p.X >= w - z, top = p.Y < zTop, bottom = p.Y >= h - Math.Max(z, GripBottom);
+            if ((top && p.X < c) || (left && p.Y < zTop + z)) return HTTOPLEFT;
+            if ((top && p.X >= w - c) || (right && p.Y < zTop + z)) return HTTOPRIGHT;
+            if ((bottom && p.X < c) || (left && p.Y >= h - c)) return HTBOTTOMLEFT;
+            if ((bottom && p.X >= w - c) || (right && p.Y >= h - c)) return HTBOTTOMRIGHT;
+            if (top) return HTTOP;
+            if (bottom) return HTBOTTOM;
+            if (left) return HTLEFT;
+            if (right) return HTRIGHT;
+            return HTCLIENT;
+        }
+
+        static Point ScreenPoint(Message m)
+        {
+            long lp = m.LParam.ToInt64();
+            return new Point((short)(lp & 0xFFFF), (short)((lp >> 16) & 0xFFFF));
+        }
+
+        /// <summary>
+        /// Called by the note's child controls: if the mouse is in the resize border, answer HTTRANSPARENT so
+        /// Windows asks the note itself, which then reports the edge. Returns true when it handled the message.
+        /// </summary>
+        internal static bool PassEdgeHit(Control child, ref Message m)
+        {
+            if (m.Msg != WM_NCHITTEST) return false;
+            var note = child.FindForm() as StickyNote;
+            if (note == null || note.WindowState != FormWindowState.Normal) return false;
+            if (note.HitZone(note.PointToClient(ScreenPoint(m))) == HTCLIENT) return false;
+            m.Result = (IntPtr)HTTRANSPARENT;
+            return true;
+        }
+
         protected override void WndProc(ref Message m)
         {
             base.WndProc(ref m);
-            if (m.Msg != WM_NCHITTEST || (int)m.Result != HTCLIENT) return;
-            long lp = m.LParam.ToInt64();
-            var p = PointToClient(new Point((short)(lp & 0xFFFF), (short)((lp >> 16) & 0xFFFF)));
-            int cw = ClientSize.Width, ch = ClientSize.Height;
-            bool left = p.X < Grip, right = p.X >= cw - Grip, bottom = p.Y >= ch - GripBottom;
-            // Generous corner zones so the diagonal resize is easy to grab.
-            if ((bottom && p.X >= cw - Corner) || (right && p.Y >= ch - Corner)) m.Result = (IntPtr)HTBOTTOMRIGHT;
-            else if ((bottom && p.X < Corner) || (left && p.Y >= ch - Corner)) m.Result = (IntPtr)HTBOTTOMLEFT;
-            else if (bottom) m.Result = (IntPtr)HTBOTTOM;
-            else if (right) m.Result = (IntPtr)HTRIGHT;
-            else if (left) m.Result = (IntPtr)HTLEFT;
+            if (m.Msg != WM_NCHITTEST || (int)m.Result != HTCLIENT || WindowState != FormWindowState.Normal) return;
+            int zone = HitZone(PointToClient(ScreenPoint(m)));
+            if (zone != HTCLIENT) m.Result = (IntPtr)zone;
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
@@ -398,11 +426,29 @@ namespace QwenPad
         }
 
         const int WM_NCHITTEST = 0x84, WM_NCLBUTTONDOWN = 0xA1, HTCLIENT = 1, HTCAPTION = 2;
-        const int HTLEFT = 10, HTRIGHT = 11, HTTOP = 12, HTBOTTOM = 15, HTBOTTOMLEFT = 16, HTBOTTOMRIGHT = 17;
+        const int HTTRANSPARENT = -1, HTLEFT = 10, HTRIGHT = 11, HTTOP = 12, HTTOPLEFT = 13, HTTOPRIGHT = 14;
+        const int HTBOTTOM = 15, HTBOTTOMLEFT = 16, HTBOTTOMRIGHT = 17;
         const int CS_DROPSHADOW = 0x20000, WS_MINIMIZEBOX = 0x20000, WS_SYSMENU = 0x80000;
 
         [DllImport("user32.dll")] static extern bool ReleaseCapture();
         [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+    }
+
+    // A note's child controls let clicks near the note's edge fall through to the note, so the resize
+    // border is wide and works over the text and header, like a normal window's frame.
+    sealed class EdgeTextBox : TextBox
+    {
+        protected override void WndProc(ref Message m) { if (!StickyNote.PassEdgeHit(this, ref m)) base.WndProc(ref m); }
+    }
+
+    sealed class EdgePanel : Panel
+    {
+        protected override void WndProc(ref Message m) { if (!StickyNote.PassEdgeHit(this, ref m)) base.WndProc(ref m); }
+    }
+
+    sealed class EdgeLabel : Label
+    {
+        protected override void WndProc(ref Message m) { if (!StickyNote.PassEdgeHit(this, ref m)) base.WndProc(ref m); }
     }
 
     /// <summary>
