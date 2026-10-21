@@ -69,6 +69,7 @@ With nothing selected, rewrite actions apply to the whole document. Every AI edi
 ### 🗒️ Sticky notes
 - **Notes > New Sticky Note** (Ctrl+Shift+M), **Note from Selection**, or **✦ Summarize to Note**, where Qwen condenses your document into a titled checklist.
 - **Ctrl+K inside a note** asks Qwen to rewrite or add to it.
+- Each note has a **title**, a **date** (hover for created/edited times), and a **handwritten font**.
 - Each note is its own window with a taskbar button grouped under QwenPad (minimize, restore, Alt+Tab).
 - Notes **auto-expand** to fit their text (scrollbar only when they reach the screen edge) and can be resized from any edge or the corner grip.
 - Six colors, always-on-top, drag to move, and **Insert into Document**.

@@ -1315,6 +1315,7 @@ namespace QwenPad
                     if (note.IsDisposed) return;
                     note.SetBusy(false);
                     note.SetStreamText(final.Length > 0 ? final : "Qwen couldn't summarize this" + (error != null ? ": " + error : "."));
+                    if (final.Length > 0) note.TakeTitleFromFirstLine();   // the prompt asks for a title on the first line
                 });
             });
             t.IsBackground = true;

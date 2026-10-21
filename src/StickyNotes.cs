@@ -24,7 +24,7 @@ namespace QwenPad
         // Visual padding around the text (the bottom strip holds the grip). The invisible resize zone is wider
         // and overlaps the child controls, which pass edge hits through to the note (see PassEdgeHit).
         const int Grip = 7, GripBottom = 14;
-        const int EM_GETLINECOUNT = 0xBA;
+        const int EM_GETLINECOUNT = 0xBA, EM_SETCUEBANNER = 0x1501;
 
         int baseHeight;        // height the user chose; auto-expansion never shrinks below it
         Size sizeAtResizeBegin;
@@ -34,6 +34,17 @@ namespace QwenPad
         internal readonly TextBox Body = new EdgeTextBox();
         readonly Panel header = new EdgePanel();
         readonly Label lblStatus = new EdgeLabel();
+        readonly Panel titleRow = new EdgePanel();
+        readonly TextBox txtTitle = new EdgeTextBox();
+        readonly Label lblDate = new EdgeLabel();
+        readonly ToolTip dateTip = new ToolTip();
+        internal DateTime CreatedOn = DateTime.Now, ModifiedOn = DateTime.Now;
+        bool loadingContent;   // text being loaded from disk doesn't count as an edit
+
+        // Handwritten look: Ink Free (Windows 10 1803+ / 11), else Segoe Print (Windows 7+), else Segoe UI.
+        static readonly string HandFont = PickFont("Ink Free", "Segoe Print");
+        static float BodySize { get { return HandFont == "Ink Free" ? 12.5f : HandFont == "Segoe Print" ? 10.5f : 10.5f; } }
+        static float TitleSize { get { return HandFont == "Ink Free" ? 17f : 13.5f; } }
         readonly ContextMenuStrip menu = new ContextMenuStrip();
         readonly ToolStripMenuItem miTop;
         readonly List<Label> headerButtons = new List<Label>();
@@ -78,17 +89,44 @@ namespace QwenPad
                 c.MouseUp += DragEnd;
             }
 
+            // Title row: an editable handwritten title with the note's date beside it.
+            txtTitle.BorderStyle = BorderStyle.None;
+            txtTitle.Font = new Font(HandFont, TitleSize, HandFont == "Ink Free" ? FontStyle.Regular : FontStyle.Bold);
+            txtTitle.Dock = DockStyle.Fill;
+            txtTitle.MaxLength = 120;
+            txtTitle.TabIndex = 1;
+            txtTitle.TextChanged += delegate { Edited(); UpdateCaption(); };
+            txtTitle.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Down) { e.Handled = e.SuppressKeyPress = true; Body.Focus(); Body.Select(0, 0); }
+            };
+            txtTitle.HandleCreated += delegate { SendMessage(txtTitle.Handle, EM_SETCUEBANNER, (IntPtr)1, "Title"); };
+            lblDate.Dock = DockStyle.Right;
+            lblDate.AutoSize = true;
+            lblDate.Font = new Font(HandFont, BodySize - 2f);
+            lblDate.Padding = new Padding(4, 0, 2, 0);
+            lblDate.TextAlign = ContentAlignment.MiddleRight;
+            titleRow.Dock = DockStyle.Top;
+            titleRow.Height = txtTitle.PreferredHeight + 2;
+            titleRow.Padding = new Padding(1, 2, 0, 0);
+            titleRow.Controls.Add(txtTitle);
+            titleRow.Controls.Add(lblDate);
+
             Body.Multiline = true;
             Body.BorderStyle = BorderStyle.None;
+            Body.Font = new Font(HandFont, BodySize);
+            Body.TabIndex = 0;   // clicking or activating a note puts the cursor in its text
             Body.Dock = DockStyle.Fill;
             Body.WordWrap = true;
             Body.ScrollBars = ScrollBars.None;   // shown only once the note can't grow any further
             Body.AcceptsTab = true;
             Body.MaxLength = 0;
-            Body.TextChanged += delegate { mgr.MarkDirty(this); UpdateCaption(); AutoFit(); };
+            Body.TextChanged += delegate { Edited(); UpdateCaption(); AutoFit(); };
             Body.KeyDown += Body_KeyDown;
 
+            // Docking order: later-added controls dock further out (header on top, then the title row).
             Controls.Add(Body);
+            Controls.Add(titleRow);
             Controls.Add(header);
 
             for (int i = 0; i < ColorNames.Length; i++)
@@ -102,7 +140,10 @@ namespace QwenPad
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("✦ &Ask Qwen...", null, delegate { mgr.Ask(this); }) { ShortcutKeyDisplayString = "Ctrl+K" },
                 new ToolStripSeparator(), miTop,
-                new ToolStripMenuItem("&Insert into Document", null, delegate { mgr.InsertIntoDocument(Body.Text); }),
+                new ToolStripMenuItem("&Insert into Document", null, delegate
+                {
+                    mgr.InsertIntoDocument(TitleText.Length > 0 ? TitleText + "\r\n" + Body.Text : Body.Text);
+                }),
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("&Delete Note", null, delegate { mgr.Delete(this); }) { ShortcutKeyDisplayString = "Ctrl+D" }
             });
@@ -133,7 +174,79 @@ namespace QwenPad
             SetColor(0);
         }
 
-        /// <summary>Taskbar / Alt+Tab caption: the note's first line.</summary>
+        /// <summary>The note's own title (may be empty).</summary>
+        internal string TitleText
+        {
+            get { return txtTitle.Text.Trim(); }
+            set { txtTitle.Text = (value ?? "").Replace("\r", "").Replace("\n", " ").Trim(); }
+        }
+
+        /// <summary>Sets title, text and dates without counting it as an edit (loading from disk / creating).</summary>
+        internal void LoadContent(string title, string text, DateTime created, DateTime modified)
+        {
+            loadingContent = true;
+            try
+            {
+                TitleText = title;
+                Body.Text = text;
+                CreatedOn = created;
+                ModifiedOn = modified;
+            }
+            finally { loadingContent = false; }
+            UpdateDate();
+            UpdateCaption();
+        }
+
+        void Edited()
+        {
+            mgr.MarkDirty(this);
+            if (loadingContent) return;
+            ModifiedOn = DateTime.Now;
+            UpdateDate();
+        }
+
+        void UpdateDate()
+        {
+            var d = CreatedOn;
+            lblDate.Text = d.Date == DateTime.Today ? "Today, " + d.ToShortTimeString()
+                : d.Year == DateTime.Today.Year ? d.ToString("MMM d") : d.ToString("MMM d, yyyy");
+            dateTip.SetToolTip(lblDate, "Created " + CreatedOn.ToString("f") + "\nEdited " + ModifiedOn.ToString("f"));
+        }
+
+        /// <summary>When a note has no title yet, moves its first line into the title (used after Summarize to Note).</summary>
+        internal void TakeTitleFromFirstLine()
+        {
+            if (TitleText.Length > 0) return;
+            string text = Body.Text.Replace("\r\n", "\n");
+            int nl = text.IndexOf('\n');
+            if (nl <= 0) return;
+            string first = text.Substring(0, nl).Trim().TrimStart('#', '•', '-', '*', ' ').Trim();
+            if (first.Length == 0 || first.Length > 80) return;
+            TitleText = first;
+            Body.Text = text.Substring(nl + 1).TrimStart('\n').Replace("\n", "\r\n");
+        }
+
+        /// <summary>Title, created and modified dates as header lines for the note file.</summary>
+        internal string InfoLines()
+        {
+            return "#title " + TitleText + "\r\n#created " + CreatedOn.ToString("s", CultureInfo.InvariantCulture) +
+                   "\r\n#modified " + ModifiedOn.ToString("s", CultureInfo.InvariantCulture) + "\r\n";
+        }
+
+        static string PickFont(params string[] names)
+        {
+            try
+            {
+                using (var fonts = new System.Drawing.Text.InstalledFontCollection())
+                    foreach (string n in names)
+                        foreach (var f in fonts.Families)
+                            if (string.Equals(f.Name, n, StringComparison.OrdinalIgnoreCase)) return n;
+            }
+            catch { }
+            return "Segoe UI";
+        }
+
+        /// <summary>Taskbar / Alt+Tab caption: the note's title (or first line).</summary>
         void UpdateCaption()
         {
             string t = Title;
@@ -148,11 +261,13 @@ namespace QwenPad
             Theme.ApplyScrollbars(Body);
         }
 
-        /// <summary>The first non-empty line, used in the Notes menu.</summary>
+        /// <summary>The title, or else the first non-empty line; used in the Notes menu and taskbar.</summary>
         internal string Title
         {
             get
             {
+                string own = TitleText;
+                if (own.Length > 0) return own.Length > 40 ? own.Substring(0, 40) + "…" : own;
                 foreach (string line in Body.Text.Split('\n'))
                 {
                     string t = line.Trim().TrimStart('•', '-', '*', '#', ' ');
@@ -169,6 +284,9 @@ namespace QwenPad
             BackColor = Body.BackColor = FromRgb((dark ? DarkBodyRgb : BodyRgb)[ColorIndex]);
             header.BackColor = FromRgb((dark ? DarkHeadRgb : HeadRgb)[ColorIndex]);
             Body.ForeColor = dark ? Color.FromArgb(232, 232, 232) : Color.Black;
+            titleRow.BackColor = txtTitle.BackColor = lblDate.BackColor = Body.BackColor;
+            txtTitle.ForeColor = dark ? Color.FromArgb(245, 245, 245) : Color.FromArgb(25, 25, 25);
+            lblDate.ForeColor = dark ? Color.FromArgb(160, 160, 160) : Color.FromArgb(110, 110, 110);
             lblStatus.ForeColor = dark ? Color.FromArgb(175, 175, 175) : Color.FromArgb(90, 90, 90);
             foreach (var b in headerButtons) b.ForeColor = dark ? Color.FromArgb(215, 215, 215) : Color.FromArgb(60, 60, 60);
             Invalidate();
@@ -225,7 +343,7 @@ namespace QwenPad
         int NeededHeight()
         {
             int lines = Math.Max(1, (int)SendMessage(Body.Handle, EM_GETLINECOUNT, IntPtr.Zero, IntPtr.Zero));
-            return header.Height + GripBottom + lines * Body.Font.Height + Body.Font.Height / 2 + 4;
+            return header.Height + titleRow.Height + GripBottom + lines * Body.Font.Height + Body.Font.Height / 2 + 4;
         }
 
         void UpdateScrollbar()
@@ -482,6 +600,7 @@ namespace QwenPad
         [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr hWnd, int index);
         [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr hWnd, int index, int value);
         [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, string lParam);
     }
 
     // A note's child controls let clicks near the note's edge fall through to the note, so the resize
@@ -565,7 +684,25 @@ namespace QwenPad
                         if (!head.StartsWith("#note")) continue;
                         var note = new StickyNote(this, Path.GetFileNameWithoutExtension(path));
                         note.ApplyMeta(head);
-                        note.Body.Text = nl >= 0 ? Crlf(all.Substring(nl + 1)) : "";
+                        // Optional header lines (1.3+): "#title ...", "#created ...", "#modified ...". Older files
+                        // have none, so their dates fall back to the file's own timestamps.
+                        string rest = nl >= 0 ? all.Substring(nl + 1) : "", title = "";
+                        DateTime created = File.GetCreationTime(path), modified = File.GetLastWriteTime(path);
+                        while (rest.StartsWith("#title ") || rest.StartsWith("#created ") || rest.StartsWith("#modified "))
+                        {
+                            int end = rest.IndexOf('\n');
+                            string line = (end >= 0 ? rest.Substring(0, end) : rest).TrimEnd('\r');
+                            rest = end >= 0 ? rest.Substring(end + 1) : "";
+                            int sp = line.IndexOf(' ');
+                            string key = line.Substring(1, sp - 1), value = line.Substring(sp + 1);
+                            DateTime d;
+                            if (key == "title") title = value;
+                            else if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out d))
+                            {
+                                if (key == "created") created = d; else modified = d;
+                            }
+                        }
+                        note.LoadContent(title, Crlf(rest), created, modified);
                         notes.Add(note);
                         if (note.WantsVisible) note.Show();
                     }
@@ -592,7 +729,7 @@ namespace QwenPad
             }
             else if (x + note.Width > area.Right) x = near.Left - note.Width - 12;
             note.Location = new Point(Math.Max(area.Left, Math.Min(x, area.Right - note.Width)), Math.Max(area.Top, Math.Min(y, area.Bottom - note.Height)));
-            note.Body.Text = Crlf(text ?? "");
+            note.LoadContent("", Crlf(text ?? ""), DateTime.Now, DateTime.Now);
             notes.Add(note);
             note.Show();
             note.Activate();
@@ -658,7 +795,7 @@ namespace QwenPad
             try { Directory.CreateDirectory(Dir); } catch { return; }
             foreach (var note in dirty)
             {
-                try { File.WriteAllText(PathOf(note), note.Meta() + "\r\n" + note.Body.Text, new UTF8Encoding(false)); }
+                try { File.WriteAllText(PathOf(note), note.Meta() + "\r\n" + note.InfoLines() + note.Body.Text, new UTF8Encoding(false)); }
                 catch { }
             }
             dirty.Clear();

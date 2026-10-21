@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0] - 2026-10-21
+
+### Added
+- **Sticky-note titles:** each note has its own editable title line (Enter jumps to the text). Summarize to Note fills it in automatically, and the taskbar and Notes menu show it.
+- **Dates on notes:** the creation date is shown beside the title ("Today, 9:41 AM", "Oct 20", or with the year for older notes); hover it to see the created and last-edited times. Older notes use their file dates.
+- **Handwritten font** for note titles, text and dates (Ink Free, falling back to Segoe Print on older Windows).
+
 ## [1.2.4] - 2026-10-21
 
 ### Fixed
