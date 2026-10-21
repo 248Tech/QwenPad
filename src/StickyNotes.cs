@@ -71,8 +71,12 @@ namespace QwenPad
             lblStatus.TextAlign = ContentAlignment.MiddleLeft;
             lblStatus.ForeColor = Color.FromArgb(90, 90, 90);
             lblStatus.Font = new Font("Segoe UI", 9f);
-            header.MouseDown += DragWindow;
-            lblStatus.MouseDown += DragWindow;
+            foreach (Control c in new Control[] { header, lblStatus })
+            {
+                c.MouseDown += DragStart;
+                c.MouseMove += DragMove;
+                c.MouseUp += DragEnd;
+            }
 
             Body.Multiline = true;
             Body.BorderStyle = BorderStyle.None;
@@ -337,11 +341,30 @@ namespace QwenPad
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
-        void DragWindow(object sender, MouseEventArgs e)
+        // Moving by the header is done by hand rather than via HTCAPTION, because with a sizable frame
+        // Windows would Aero-Snap a note dragged to a screen edge into a half-screen window.
+        Point dragOffset;
+        bool dragging;
+
+        void DragStart(object sender, MouseEventArgs e)
         {
             if (e.Button != MouseButtons.Left) return;
-            ReleaseCapture();
-            SendMessage(Handle, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
+            dragging = true;
+            dragOffset = new Point(Cursor.Position.X - Left, Cursor.Position.Y - Top);
+            ((Control)sender).Capture = true;
+        }
+
+        void DragMove(object sender, MouseEventArgs e)
+        {
+            if (dragging) Location = new Point(Cursor.Position.X - dragOffset.X, Cursor.Position.Y - dragOffset.Y);
+        }
+
+        void DragEnd(object sender, MouseEventArgs e)
+        {
+            if (!dragging) return;
+            dragging = false;
+            ((Control)sender).Capture = false;
+            mgr.MarkDirty(this);
         }
 
         protected override CreateParams CreateParams
@@ -352,6 +375,9 @@ namespace QwenPad
                 cp.ClassStyle |= CS_DROPSHADOW;
                 // Lets the borderless note minimize/restore from its taskbar button and show the taskbar window menu.
                 cp.Style |= WS_MINIMIZEBOX | WS_SYSMENU;
+                // A sizable frame is what makes Windows honor the resize edges reported by WM_NCHITTEST.
+                // WM_NCCALCSIZE below gives it zero thickness, so nothing about the note's look changes.
+                cp.Style |= WS_THICKFRAME;
                 return cp;
             }
         }
@@ -412,6 +438,27 @@ namespace QwenPad
 
         protected override void WndProc(ref Message m)
         {
+            switch (m.Msg)
+            {
+                case WM_NCCALCSIZE:
+                    if (m.WParam == IntPtr.Zero) break;
+                    m.Result = IntPtr.Zero;   // the whole window is client area: no visible sizing border
+                    return;
+                case WM_NCPAINT:
+                    return;                   // nothing non-client to draw
+                case WM_NCACTIVATE:
+                    m.Result = (IntPtr)1;     // accept the activation change without painting a classic caption
+                    return;
+                case WM_SETTEXT:
+                case WM_SETICON:
+                    // DefWindowProc paints the old-style caption (icon + title) when these change on a window
+                    // with a system menu; hide the window from it for the duration of the call.
+                    int style = GetWindowLong(Handle, GWL_STYLE);
+                    if ((style & WS_VISIBLE) != 0) SetWindowLong(Handle, GWL_STYLE, style & ~WS_VISIBLE);
+                    base.WndProc(ref m);
+                    if ((style & WS_VISIBLE) != 0) SetWindowLong(Handle, GWL_STYLE, style);
+                    return;
+            }
             base.WndProc(ref m);
             if (m.Msg != WM_NCHITTEST || (int)m.Result != HTCLIENT || WindowState != FormWindowState.Normal) return;
             int zone = HitZone(PointToClient(ScreenPoint(m)));
@@ -428,9 +475,12 @@ namespace QwenPad
         const int WM_NCHITTEST = 0x84, WM_NCLBUTTONDOWN = 0xA1, HTCLIENT = 1, HTCAPTION = 2;
         const int HTTRANSPARENT = -1, HTLEFT = 10, HTRIGHT = 11, HTTOP = 12, HTTOPLEFT = 13, HTTOPRIGHT = 14;
         const int HTBOTTOM = 15, HTBOTTOMLEFT = 16, HTBOTTOMRIGHT = 17;
-        const int CS_DROPSHADOW = 0x20000, WS_MINIMIZEBOX = 0x20000, WS_SYSMENU = 0x80000;
+        const int CS_DROPSHADOW = 0x20000, WS_MINIMIZEBOX = 0x20000, WS_SYSMENU = 0x80000, WS_THICKFRAME = 0x40000;
+        const int WM_NCCALCSIZE = 0x83, WM_NCPAINT = 0x85, WM_NCACTIVATE = 0x86, WM_SETTEXT = 0x0C, WM_SETICON = 0x80;
+        const int GWL_STYLE = -16, WS_VISIBLE = 0x10000000;
 
-        [DllImport("user32.dll")] static extern bool ReleaseCapture();
+        [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr hWnd, int index);
+        [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr hWnd, int index, int value);
         [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
     }
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.4] - 2026-10-21
+
+### Fixed
+- **Sticky notes really resize now.** Since 1.2.1 the resize cursor appeared on a note's edges and corners, but Windows refused to start the resize because the window didn't have a sizable frame. Notes now use a zero-width sizable frame, so dragging any edge or corner works. Moving a note by its header no longer triggers Windows Snap.
+
 ## [1.2.3] - 2026-10-21
 
 ### Fixed
