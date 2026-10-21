@@ -20,7 +20,12 @@ namespace QwenPad
         static readonly int[] DarkBodyRgb = { 0x38331F, 0x22342A, 0x3A2531, 0x2E2840, 0x21303F, 0x2B2B2B };
         static readonly int[] DarkHeadRgb = { 0x5A4F2A, 0x33513D, 0x5C3A4C, 0x463B63, 0x30486A, 0x404040 };
         static readonly Image[] swatches = new Image[ColorNames.Length];
-        const int Grip = 6;
+        // Resize zones: side borders, a taller bottom strip (holds the grip), corner size, and the top edge of the header.
+        const int Grip = 7, GripBottom = 14, Corner = 20, TopGrip = 5;
+        const int EM_GETLINECOUNT = 0xBA;
+
+        int baseHeight;        // height the user chose; auto-expansion never shrinks below it
+        Size sizeAtResizeBegin;
 
         readonly NoteManager mgr;
         internal readonly string Id;
@@ -50,7 +55,7 @@ namespace QwenPad
             Font = new Font("Segoe UI", 10.5f);
             Size = new Size(Font.Height * 15, Font.Height * 13);
             MinimumSize = new Size(Font.Height * 8, Font.Height * 6);
-            Padding = new Padding(Grip, 0, Grip, Grip);
+            Padding = new Padding(Grip, 0, Grip, GripBottom);
             Text = "Sticky Note";
 
             header.Dock = DockStyle.Top;
@@ -66,15 +71,18 @@ namespace QwenPad
             lblStatus.Font = new Font("Segoe UI", 9f);
             header.MouseDown += DragWindow;
             lblStatus.MouseDown += DragWindow;
+            MouseEventHandler topCursor = (s, e) => ((Control)s).Cursor = PointToClient(Cursor.Position).Y < TopGrip ? Cursors.SizeNS : Cursors.Default;
+            header.MouseMove += topCursor;
+            lblStatus.MouseMove += topCursor;
 
             Body.Multiline = true;
             Body.BorderStyle = BorderStyle.None;
             Body.Dock = DockStyle.Fill;
             Body.WordWrap = true;
-            Body.ScrollBars = ScrollBars.Vertical;
+            Body.ScrollBars = ScrollBars.None;   // shown only once the note can't grow any further
             Body.AcceptsTab = true;
             Body.MaxLength = 0;
-            Body.TextChanged += delegate { mgr.MarkDirty(this); UpdateCaption(); };
+            Body.TextChanged += delegate { mgr.MarkDirty(this); UpdateCaption(); AutoFit(); };
             Body.KeyDown += Body_KeyDown;
 
             Controls.Add(Body);
@@ -103,6 +111,15 @@ namespace QwenPad
 
             Move += delegate { mgr.MarkDirty(this); };
             Resize += delegate { mgr.MarkDirty(this); Invalidate(); };
+            Shown += delegate { AutoFit(); };
+            ResizeBegin += delegate { sizeAtResizeBegin = Size; };
+            ResizeEnd += delegate
+            {
+                if (Size == sizeAtResizeBegin) return;   // it was a move, not a resize
+                baseHeight = Height;                     // the user's chosen size becomes the new base
+                UpdateScrollbar();
+                mgr.MarkDirty(this);
+            };
             Body.HandleCreated += delegate { Theme.ApplyScrollbars(Body); };
             // Only the user hides notes (✕, Ctrl+W, Hide All). If anything else hides one, show it again.
             VisibleChanged += delegate
@@ -186,11 +203,47 @@ namespace QwenPad
             Body.ScrollToCaret();
         }
 
+        /// <summary>
+        /// Grows the note to fit its text (down to the screen's bottom edge, at most 3/4 of the screen),
+        /// shrinks back toward the user's chosen height when text is removed, and shows a scrollbar only when capped.
+        /// </summary>
+        void AutoFit()
+        {
+            if (!IsHandleCreated || !Body.IsHandleCreated || WindowState != FormWindowState.Normal) return;
+            if (baseHeight == 0) baseHeight = Height;
+            int needed = NeededHeight();
+            var wa = Screen.FromControl(this).WorkingArea;
+            int cap = Math.Max(MinimumSize.Height, Math.Min(wa.Bottom - Top, wa.Height * 3 / 4));
+            int target = Math.Max(baseHeight, Math.Min(needed, cap));
+            if (target != Height) Height = target;   // programmatic: doesn't raise ResizeEnd, so baseHeight is kept
+            UpdateScrollbar();
+        }
+
+        int NeededHeight()
+        {
+            int lines = Math.Max(1, (int)SendMessage(Body.Handle, EM_GETLINECOUNT, IntPtr.Zero, IntPtr.Zero));
+            return header.Height + GripBottom + lines * Body.Font.Height + Body.Font.Height / 2 + 4;
+        }
+
+        void UpdateScrollbar()
+        {
+            if (!Body.IsHandleCreated) return;
+            var want = NeededHeight() > Height ? ScrollBars.Vertical : ScrollBars.None;
+            if (Body.ScrollBars == want) return;
+            // Changing ScrollBars recreates the edit control; keep the caret, selection and focus.
+            int ss = Body.SelectionStart, sl = Body.SelectionLength;
+            bool focused = Body.Focused;
+            Body.ScrollBars = want;
+            Body.Select(ss, sl);
+            Body.ScrollToCaret();
+            if (focused) Body.Focus();
+        }
+
         internal string Meta()
         {
             var b = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
-            return string.Format(CultureInfo.InvariantCulture, "#note x={0} y={1} w={2} h={3} color={4} top={5} visible={6}",
-                b.X, b.Y, b.Width, b.Height, ColorIndex, TopMost ? 1 : 0, WantsVisible ? 1 : 0);
+            return string.Format(CultureInfo.InvariantCulture, "#note x={0} y={1} w={2} h={3} bh={4} color={5} top={6} visible={7}",
+                b.X, b.Y, b.Width, b.Height, baseHeight > 0 ? baseHeight : b.Height, ColorIndex, TopMost ? 1 : 0, WantsVisible ? 1 : 0);
         }
 
         internal void ApplyMeta(string line)
@@ -202,8 +255,9 @@ namespace QwenPad
                 if (eq > 0 && int.TryParse(part.Substring(eq + 1), NumberStyles.Integer, CultureInfo.InvariantCulture, out n))
                     v[part.Substring(0, eq)] = n;
             }
-            int x, y, w, h, c, top, vis;
+            int x, y, w, h, bh, c, top, vis;
             if (v.TryGetValue("w", out w) && v.TryGetValue("h", out h)) Size = new Size(w, h);
+            baseHeight = v.TryGetValue("bh", out bh) && bh > 0 ? bh : Height;
             if (v.TryGetValue("x", out x) && v.TryGetValue("y", out y)) Location = new Point(x, y);
             if (v.TryGetValue("color", out c)) SetColor(c);
             if (v.TryGetValue("top", out top)) TopMost = top == 1;
@@ -287,8 +341,10 @@ namespace QwenPad
         void DragWindow(object sender, MouseEventArgs e)
         {
             if (e.Button != MouseButtons.Left) return;
+            // The top few pixels of the header resize the note; the rest drags it.
+            int hit = PointToClient(Cursor.Position).Y < TopGrip ? HTTOP : HTCAPTION;
             ReleaseCapture();
-            SendMessage(Handle, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
+            SendMessage(Handle, WM_NCLBUTTONDOWN, (IntPtr)hit, IntPtr.Zero);
         }
 
         protected override CreateParams CreateParams
@@ -308,6 +364,13 @@ namespace QwenPad
             base.OnPaint(e);
             using (var pen = new Pen(Theme.Dark ? Color.FromArgb(70, 255, 255, 255) : Color.FromArgb(60, 0, 0, 0)))
                 e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
+            // Resize grip in the bottom-right corner.
+            int w = ClientSize.Width, h = ClientSize.Height;
+            using (var grip = new Pen(Theme.Dark ? Color.FromArgb(110, 255, 255, 255) : Color.FromArgb(90, 0, 0, 0), 1.2f))
+            {
+                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                for (int k = 1; k <= 3; k++) e.Graphics.DrawLine(grip, w - 3, h - 3 - k * 3, w - 3 - k * 3, h - 3);
+            }
         }
 
         /// <summary>The padding around the text box acts as a resize border.</summary>
@@ -317,9 +380,11 @@ namespace QwenPad
             if (m.Msg != WM_NCHITTEST || (int)m.Result != HTCLIENT) return;
             long lp = m.LParam.ToInt64();
             var p = PointToClient(new Point((short)(lp & 0xFFFF), (short)((lp >> 16) & 0xFFFF)));
-            bool left = p.X < Grip, right = p.X >= ClientSize.Width - Grip, bottom = p.Y >= ClientSize.Height - Grip;
-            if (bottom && right) m.Result = (IntPtr)HTBOTTOMRIGHT;
-            else if (bottom && left) m.Result = (IntPtr)HTBOTTOMLEFT;
+            int cw = ClientSize.Width, ch = ClientSize.Height;
+            bool left = p.X < Grip, right = p.X >= cw - Grip, bottom = p.Y >= ch - GripBottom;
+            // Generous corner zones so the diagonal resize is easy to grab.
+            if ((bottom && p.X >= cw - Corner) || (right && p.Y >= ch - Corner)) m.Result = (IntPtr)HTBOTTOMRIGHT;
+            else if ((bottom && p.X < Corner) || (left && p.Y >= ch - Corner)) m.Result = (IntPtr)HTBOTTOMLEFT;
             else if (bottom) m.Result = (IntPtr)HTBOTTOM;
             else if (right) m.Result = (IntPtr)HTRIGHT;
             else if (left) m.Result = (IntPtr)HTLEFT;
@@ -333,7 +398,7 @@ namespace QwenPad
         }
 
         const int WM_NCHITTEST = 0x84, WM_NCLBUTTONDOWN = 0xA1, HTCLIENT = 1, HTCAPTION = 2;
-        const int HTLEFT = 10, HTRIGHT = 11, HTBOTTOM = 15, HTBOTTOMLEFT = 16, HTBOTTOMRIGHT = 17;
+        const int HTLEFT = 10, HTRIGHT = 11, HTTOP = 12, HTBOTTOM = 15, HTBOTTOMLEFT = 16, HTBOTTOMRIGHT = 17;
         const int CS_DROPSHADOW = 0x20000, WS_MINIMIZEBOX = 0x20000, WS_SYSMENU = 0x80000;
 
         [DllImport("user32.dll")] static extern bool ReleaseCapture();

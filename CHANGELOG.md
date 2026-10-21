@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.2] - 2026-10-21
+
+### Added
+- **Sticky notes auto-expand** as you type (or as Qwen writes), up to the bottom of the screen / 3/4 of its height; a scrollbar appears only once a note can't grow further. Notes shrink back to your chosen size when text is removed.
+- **Easier resizing:** a visible grip in the bottom-right corner, wider edge and corner grab zones, and a resize zone along the top edge. The size you drag to becomes the note's base size and is saved.
+
 ## [1.2.1] - 2026-10-20
 
 ### Fixed
