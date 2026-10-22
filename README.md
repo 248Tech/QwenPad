@@ -23,7 +23,7 @@ Jot it down, make it pretty, pin it on top, and let Qwen3.5 tidy it up, 100% off
 
 Windows Sticky Notes is plain. Notepad is dumb. Cloud AI editors read everything you type. **QwenPad gives you gorgeous sticky notes and a fast editor with an AI that never leaves your machine.**
 
-- 🗒️ **Sticky notes you'll actually enjoy.** Fifteen looks, from six classic colors to nine hand-illustrated seasonal designs. Rich text, font colors, bullets, images, GIFs and freehand drawing.
+- 🗒️ **Sticky notes you'll actually enjoy.** 29 looks, from six classic colors to 23 hand-illustrated themes across six categories. Rich text, font colors, bullets, images, GIFs and freehand drawing.
 - 📌 **Always where you need them.** Pin notes above every window, make them see-through, and keep them on screen even after you close QwenPad. They can even reopen when Windows starts.
 - ✦ **AI in every note.** Press Ctrl+K in a note to have Qwen rewrite it, add to it or turn it into a checklist. Untitled notes get a title automatically, and an email becomes a stack of task notes.
 - 🛟 **Notes don't get lost.** Crash-safe saves, a 30-day trash, automatic backups and one-click import from other copies.
@@ -32,13 +32,18 @@ Windows Sticky Notes is plain. Notepad is dumb. Cloud AI editors read everything
 
 ## 🗒️ Sticky notes that stay on your desktop
 
-<img src="docs/images/notes-designs.png" alt="All QwenPad sticky note designs: Spooky Night, Pumpkin Patch, Moonlit Ghost, Harvest Moon, Hedgehog Hollow, Doodle Pumpkins, Snowflake Frost, Cozy Critters, Snowman Night, and six classic colors" width="100%">
+<img src="docs/images/notes-designs.png" alt="All 23 QwenPad sticky note themes grouped by category: Fall, Winter, Summer, Critters, Patterns and Sports" width="100%">
 
 ### Make them yours
-- **Nine seasonal designs**, each with its own artwork, ink colors and ruled lines:
-  - 🍂 **Fall:** Spooky Night · Pumpkin Patch · Moonlit Ghost · Harvest Moon · Hedgehog Hollow · Doodle Pumpkins
+- **23 hand-illustrated designs**, grouped by category in the ⋯ > 🎨 Themes menu, each with its own artwork, ink colors and ruled lines:
+  - 🍂 **Fall:** Spooky Night · Pumpkin Patch · Moonlit Ghost · Harvest Moon · Hedgehog Hollow · Doodle Pumpkins · Autumn Cat · Haunted Hill
   - ❄ **Winter:** Snowflake Frost · Cozy Critters · Snowman Night
+  - 🏖 **Summer:** Beach Day · Palm Beach · Leaf Me a Note · Sunflower
+  - 🐾 **Critters:** Capybara · Sleepy Sloth
+  - 🌀 **Patterns:** Spiral · Doodle Swirls · Geometric · Holographic · Dollar Note
+  - 🏈 **Sports:** Game Day
 - **Six classic colors** (yellow, green, pink, purple, blue, gray) that switch to matching dark versions in dark mode.
+- **Background Art** (⋯ menu): fade a theme's artwork from full down to a faint watermark over plain paper, so the design never gets in the way of your words.
 - A **handwritten font**, a **title**, and a **date** on every note (hover for the created and edited times).
 - Every design is drawn in code, so it's sharp at any size and never covers your words with clutter.
 
@@ -227,12 +232,13 @@ New/Open/Save/Save As/Print · Find/Replace (match case, wrap, up/down) · Go To
 | **📌** button | Pin on top (Ctrl+P) |
 | **✕** button | Hide (Ctrl+W) |
 | Yellow · Green · Pink · Purple · Blue · Gray | Classic colors |
-| 🍂 / ❄ designs | The nine seasonal designs |
+| 🎨 Themes ▸ | The 23 designs, grouped: Fall · Winter · Summer · Critters · Patterns · Sports |
 | ✦ Ask Qwen… | Ctrl+K |
 | Add Image or GIF… | Also paste or drag and drop |
 | ✏ Draw | Pen, brush, eraser, five colors, three sizes, undo, clear |
 | Pin on Top of All Windows | Ctrl+P |
-| Opacity | 100% to 30% |
+| Opacity | 100% to 30% (the whole note) |
+| Background Art | Full art down to a faint watermark (a design's artwork only) |
 | Layer > Bring to Front · Move Forward · Move Back · Send to Back | Ctrl+scroll moves forward or back |
 | ☰ Notes List… | |
 | Insert into Document | Pastes the note into the editor |

@@ -23,6 +23,7 @@ namespace QwenPad
         static readonly int[] DarkHeadRgb = { 0x5A4F2A, 0x33513D, 0x5C3A4C, 0x463B63, 0x30486A, 0x404040 };
         static readonly Image[] swatches = new Image[ColorNames.Length];
         static readonly int[] OpacityLevels = { 100, 90, 80, 70, 60, 50, 40, 30 };
+        static readonly int[] ArtLevels = { 100, 75, 50, 25, 10 };
         internal static readonly string ImageFilter = "Images (*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.tif;*.tiff;*.ico)|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.tif;*.tiff;*.ico";
         static readonly string[] ImageExtensions = { ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".ico" };
 
@@ -77,6 +78,7 @@ namespace QwenPad
         internal DateTime ModifiedOn { get; set; }
         internal bool AutoTitleTried;
         internal int OpacityPercent = 100;
+        internal int ArtStrength = 100;   // how strongly the theme artwork shows (100 full .. 10 faint watermark)
         bool loadingContent;   // text being loaded from disk doesn't count as an edit
 
         // Handwritten look: Ink Free (Windows 10 1803+ / 11), else Segoe Print (Windows 7+), else Segoe UI.
@@ -86,7 +88,7 @@ namespace QwenPad
         readonly ContextMenuStrip menu = new ContextMenuStrip();
         Label colorButton;
         Color shownFontColor = Color.Black;
-        readonly ToolStripMenuItem miTop, miOpacity;
+        readonly ToolStripMenuItem miTop, miOpacity, miArt;
         readonly List<Label> headerButtons = new List<Label>();
         readonly ToolTip headerTip = new ToolTip();
         readonly Label btnPin;
@@ -236,26 +238,41 @@ namespace QwenPad
                 menu.Items.Add(new ToolStripMenuItem(ColorNames[i], Swatch(i), delegate { SetDesign(0); SetColor(c); mgr.MarkDirty(this); }));
             }
             miTop = new ToolStripMenuItem("📌 &Pin on Top of All Windows", null, delegate { SetPinned(!TopMost); }) { ShortcutKeyDisplayString = "Ctrl+P" };
-            // Seasonal designs sit right under the colors, so colors and designs read as one palette (fall, then winter).
+            // Designs sit right under the colors, grouped into one submenu per category (with thumbnails).
             var designItems = new List<ToolStripMenuItem>();
-            for (int d = 1; d < NoteDesigns.Count; d++)
+            menu.Items.Add(new ToolStripSeparator());
+            var miThemes = new ToolStripMenuItem("🎨 &Themes");
+            foreach (string cat in NoteDesigns.Categories)
             {
-                int dd = d;
-                if (d == 1 || NoteDesigns.Season(d) != NoteDesigns.Season(d - 1)) menu.Items.Add(new ToolStripSeparator());
-                var item = new ToolStripMenuItem(NoteDesigns.Icon(d) + " " + NoteDesigns.Names[d], NoteDesigns.Thumbnail(d, 20, 20), delegate { SetDesign(dd); })
+                var sub = new ToolStripMenuItem(NoteDesigns.CategoryIcon(cat) + " " + cat);
+                for (int d = 1; d < NoteDesigns.Count; d++)
                 {
-                    Tag = d,
-                    ImageScaling = ToolStripItemImageScaling.None,
-                    ToolTipText = NoteDesigns.Season(d) + " design"
-                };
-                designItems.Add(item);
-                menu.Items.Add(item);
+                    if (NoteDesigns.Category(d) != cat) continue;
+                    int dd = d;
+                    var item = new ToolStripMenuItem(NoteDesigns.Names[d], NoteDesigns.Thumbnail(d, 30, 24), delegate { SetDesign(dd); })
+                    {
+                        Tag = d,
+                        ImageScaling = ToolStripItemImageScaling.None,
+                        ToolTipText = cat + " design"
+                    };
+                    designItems.Add(item);
+                    sub.DropDownItems.Add(item);
+                }
+                miThemes.DropDownItems.Add(sub);
             }
+            menu.Items.Add(miThemes);
             miOpacity = new ToolStripMenuItem("&Opacity");
             foreach (int pct in OpacityLevels)
             {
                 int p = pct;
                 miOpacity.DropDownItems.Add(new ToolStripMenuItem(pct + "%", null, delegate { SetOpacity(p); mgr.MarkDirty(this); }) { Tag = pct });
+            }
+            // How strongly the theme artwork shows (fades it to a faint watermark over plain paper).
+            miArt = new ToolStripMenuItem("Background &Art");
+            foreach (int pct in ArtLevels)
+            {
+                int p = pct;
+                miArt.DropDownItems.Add(new ToolStripMenuItem(pct == 100 ? "Full art" : pct + "%", null, delegate { SetArtStrength(p); mgr.MarkDirty(this); }) { Tag = pct });
             }
             var miLayer = new ToolStripMenuItem("&Layer");
             miLayer.DropDownItems.AddRange(new ToolStripItem[]
@@ -271,7 +288,7 @@ namespace QwenPad
                 new ToolStripMenuItem("✦ &Ask Qwen...", null, delegate { mgr.Ask(this); }) { ShortcutKeyDisplayString = "Ctrl+K" },
                 new ToolStripMenuItem("Add &Image or GIF...", null, delegate { ChooseImage(); }),
                 new ToolStripMenuItem("✏ &Draw (pen, brush, eraser)", null, delegate { SetDrawMode(!drawMode); }),
-                new ToolStripSeparator(), miTop, miOpacity, miLayer,
+                new ToolStripSeparator(), miTop, miOpacity, miArt, miLayer,
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("☰ Notes &List...", null, delegate { mgr.ShowList(this); }),
                 new ToolStripMenuItem("&Insert into Document", null, delegate
@@ -286,6 +303,8 @@ namespace QwenPad
                 miTop.Checked = TopMost;
                 for (int i = 0; i < ColorNames.Length; i++) ((ToolStripMenuItem)menu.Items[i]).Checked = i == ColorIndex;
                 foreach (ToolStripMenuItem o in miOpacity.DropDownItems) o.Checked = (int)o.Tag == OpacityPercent;
+                miArt.Enabled = Design > 0;
+                foreach (ToolStripMenuItem o in miArt.DropDownItems) o.Checked = (int)o.Tag == ArtStrength;
                 foreach (var o in designItems) o.Checked = (int)o.Tag == Design;
                 for (int i = 0; i < ColorNames.Length; i++) ((ToolStripMenuItem)menu.Items[i]).Checked = Design == 0 && i == ColorIndex;
             };
@@ -376,6 +395,15 @@ namespace QwenPad
             OpacityPercent = Math.Max(20, Math.Min(100, percent));
             Opacity = OpacityPercent / 100.0;
         }
+
+        /// <summary>Sets how strongly the theme artwork shows (100 full .. 10 faint watermark over plain paper).</summary>
+        internal void SetArtStrength(int percent)
+        {
+            ArtStrength = Math.Max(10, Math.Min(100, percent));
+            Invalidate(true);
+        }
+
+        int ArtVeilAlpha { get { return Math.Min(225, (100 - ArtStrength) * 23 / 10); } }
 
         internal enum LayerOp { Front, Forward, Backward, Back }
 
@@ -651,6 +679,10 @@ namespace QwenPad
                 designKey = key;
             }
             e.Graphics.DrawImage(designCache, 0, 0);
+            // Background Art setting: wash the art toward the design's plain paper, keeping the text readable.
+            if (ArtStrength < 100)
+                using (var veil = new SolidBrush(Color.FromArgb(ArtVeilAlpha, NoteDesigns.PaperOf(Design))))
+                    e.Graphics.FillRectangle(veil, 0, 0, ClientSize.Width, ClientSize.Height);
         }
 
         /// <summary>
@@ -1269,7 +1301,7 @@ namespace QwenPad
             var b = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
             return string.Format(CultureInfo.InvariantCulture, "#note x={0} y={1} w={2} h={3} bh={4} color={5} top={6} visible={7} op={8} at={9} sk={10} sh={11} design={12}",
                 b.X, b.Y, b.Width, b.Height, baseHeight > 0 ? baseHeight : b.Height, ColorIndex, TopMost ? 1 : 0,
-                WantsVisible ? 1 : 0, OpacityPercent, AutoTitleTried ? 1 : 0, sketchOn && sketch.HasInk ? 1 : 0, sketchHeight, Design);
+                WantsVisible ? 1 : 0, OpacityPercent, AutoTitleTried ? 1 : 0, sketchOn && sketch.HasInk ? 1 : 0, sketchHeight, Design) + " art=" + ArtStrength;
         }
 
         internal void ApplyMeta(string line)
@@ -1292,8 +1324,9 @@ namespace QwenPad
             if (v.TryGetValue("visible", out vis)) WantsVisible = vis == 1;
             if (v.TryGetValue("op", out op)) SetOpacity(op);
             if (v.TryGetValue("at", out at)) AutoTitleTried = at == 1;
-            int design;
+            int design, art;
             if (v.TryGetValue("design", out design) && design > 0) SetDesign(design);
+            if (v.TryGetValue("art", out art)) SetArtStrength(art);
             if (!OnScreen(Bounds)) Location = new Point(Screen.PrimaryScreen.WorkingArea.Right - Width - 40, Screen.PrimaryScreen.WorkingArea.Top + 40);
         }
 

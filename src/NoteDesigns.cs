@@ -15,14 +15,60 @@ namespace QwenPad
         public static readonly string[] Names =
         {
             "None (plain color)", "Spooky Night", "Pumpkin Patch", "Moonlit Ghost", "Harvest Moon",
-            "Hedgehog Hollow", "Doodle Pumpkins", "Snowflake Frost", "Cozy Critters", "Snowman Night"
+            "Hedgehog Hollow", "Doodle Pumpkins", "Snowflake Frost", "Cozy Critters", "Snowman Night",
+            "Autumn Cat", "Capybara", "Sleepy Sloth", "Beach Day", "Palm Beach", "Leaf Me a Note",
+            "Sunflower", "Game Day", "Dollar Note", "Spiral", "Doodle Swirls", "Geometric",
+            "Holographic", "Haunted Hill"
         };
-        public const int Count = 10;
 
-        /// <summary>"Fall" or "Winter", for grouping in menus.</summary>
-        public static string Season(int design) { return design >= 7 ? "Winter" : "Fall"; }
+        // Each design's category (index-aligned with Names; "" for None).
+        static readonly string[] Cats =
+        {
+            "", "Fall", "Fall", "Fall", "Fall", "Fall", "Fall", "Winter", "Winter", "Winter",
+            "Fall", "Critters", "Critters", "Summer", "Summer", "Summer", "Summer", "Sports",
+            "Patterns", "Patterns", "Patterns", "Patterns", "Patterns", "Fall"
+        };
 
-        public static string Icon(int design) { return design >= 7 ? "❄" : "🍂"; }
+        public const int Count = 24;
+
+        /// <summary>Categories in menu order, each with its icon.</summary>
+        public static readonly string[] Categories = { "Fall", "Winter", "Summer", "Critters", "Patterns", "Sports" };
+
+        public static string Category(int design) { return design >= 0 && design < Cats.Length ? Cats[design] : ""; }
+
+        public static string CategoryIcon(string category)
+        {
+            switch (category)
+            {
+                case "Fall": return "🍂";
+                case "Winter": return "❄";
+                case "Summer": return "🏖";
+                case "Critters": return "🐾";
+                case "Patterns": return "🌀";
+                case "Sports": return "🏈";
+                default: return "✦";
+            }
+        }
+
+        public static string Icon(int design) { return CategoryIcon(Category(design)); }
+
+        /// <summary>The design's dominant paper color, used to wash the art down for the "Background Art" setting
+        /// while keeping the design's text readable.</summary>
+        public static Color PaperOf(int design)
+        {
+            switch (design)
+            {
+                case 1: return Hex(0xFBEFE3); case 2: return Hex(0xF0872F); case 3: return Hex(0xEEEBF5);
+                case 4: return Hex(0x9EE3DE); case 5: return Hex(0xFBF3E2); case 6: return Hex(0xF8EFF1);
+                case 7: return Hex(0xBDEAF5); case 8: return Hex(0xF3F8FC); case 9: return Hex(0xACB1DB);
+                case 10: return Hex(0xFBF6EE); case 11: return Hex(0xFBF1C9); case 12: return Hex(0xEFF4E6);
+                case 13: return Hex(0xDCEFF5); case 14: return Hex(0xDCEFE4); case 15: return Hex(0xF2F6C8);
+                case 16: return Hex(0xF6ECD2); case 17: return Hex(0x2E7D32); case 18: return Hex(0xDCE3CE);
+                case 19: return Hex(0xF7E0E6); case 20: return Hex(0xFBF7EE); case 21: return Hex(0x14121E);
+                case 22: return Hex(0xCFE8E0); case 23: return Hex(0x120A0A);
+                default: return Color.White;
+            }
+        }
 
         public sealed class Style
         {
@@ -45,6 +91,20 @@ namespace QwenPad
                 case 7: return new Style { Text = Hex(0x0E3646), Muted = Hex(0x2F6A7E), HeaderFore = Hex(0xFFFFFF), Hover = light, SideInset = 24, BottomInset = 24, DarkHeader = true };
                 case 8: return new Style { Text = Hex(0x2C3A4C), Muted = Hex(0x7A8DA3), HeaderFore = Hex(0x2C3A4C), Hover = dark, SideInset = 10, BottomInset = 12 };
                 case 9: return new Style { Text = Hex(0x23264A), Muted = Hex(0x4B4F7E), HeaderFore = Hex(0x23264A), Hover = dark, SideInset = 10, BottomInset = 12 };
+                case 10: return new Style { Text = Hex(0x3E2A1C), Muted = Hex(0x7A5A44), HeaderFore = Hex(0xF2E6D8), Hover = dark, SideInset = 28, BottomInset = 30, DarkHeader = true };
+                case 11: return new Style { Text = Hex(0x5A4A2A), Muted = Hex(0x9A8A5A), HeaderFore = Hex(0x5A4A2A), Hover = dark, SideInset = 10, BottomInset = 44 };
+                case 12: return new Style { Text = Hex(0x3F4A2E), Muted = Hex(0x7A8A5E), HeaderFore = Hex(0x3F4A2E), Hover = dark, SideInset = 10, BottomInset = 14 };
+                case 13: return new Style { Text = Hex(0x244A5A), Muted = Hex(0x5A7A8A), HeaderFore = Hex(0x244A5A), Hover = dark, SideInset = 10, BottomInset = 40 };
+                case 14: return new Style { Text = Hex(0x1F5A52), Muted = Hex(0x4A857C), HeaderFore = Hex(0x1F5A52), Hover = dark, SideInset = 10, BottomInset = 40 };
+                case 15: return new Style { Text = Hex(0x3A4A1E), Muted = Hex(0x7A8A4E), HeaderFore = Hex(0x3A4A1E), Hover = dark, SideInset = 10, BottomInset = 52 };
+                case 16: return new Style { Text = Hex(0x5A3A14), Muted = Hex(0x9A6A34), HeaderFore = Hex(0x5A3A14), Hover = dark, SideInset = 22, BottomInset = 24 };
+                case 17: return new Style { Text = Hex(0xF4F1E8), Muted = Hex(0xCFE0C8), HeaderFore = Hex(0xFFFFFF), Hover = light, SideInset = 14, BottomInset = 20, DarkHeader = true };
+                case 18: return new Style { Text = Hex(0x2E3A28), Muted = Hex(0x5A6A50), HeaderFore = Hex(0x2E3A28), Hover = dark, SideInset = 30, BottomInset = 30 };
+                case 19: return new Style { Text = Hex(0x6A2A3A), Muted = Hex(0xA06478), HeaderFore = Hex(0x6A2A3A), Hover = dark, SideInset = 12, BottomInset = 40 };
+                case 20: return new Style { Text = Hex(0x3A3A3A), Muted = Hex(0x7A7A7A), HeaderFore = Hex(0x3A3A3A), Hover = dark, SideInset = 26, BottomInset = 26 };
+                case 21: return new Style { Text = Hex(0xDDEAD0), Muted = Hex(0x7FA07A), HeaderFore = Hex(0xBFE8A8), Hover = light, SideInset = 24, BottomInset = 24, DarkHeader = true };
+                case 22: return new Style { Text = Hex(0x3A2A5A), Muted = Hex(0x7A6AA0), HeaderFore = Hex(0x3A2A5A), Hover = dark, SideInset = 12, BottomInset = 20 };
+                case 23: return new Style { Text = Hex(0xE8C0A0), Muted = Hex(0xA07050), HeaderFore = Hex(0xE8C0A0), Hover = light, SideInset = 20, BottomInset = 20, DarkHeader = true };
                 default: return null;
             }
         }
@@ -68,6 +128,20 @@ namespace QwenPad
                     case 7: SnowflakeFrost(g, r, headerHeight); break;
                     case 8: CozyCritters(g, r, headerHeight); break;
                     case 9: SnowmanNight(g, r, headerHeight); break;
+                    case 10: AutumnCat(g, r, headerHeight); break;
+                    case 11: Capybara(g, r, headerHeight); break;
+                    case 12: SleepySloth(g, r, headerHeight); break;
+                    case 13: BeachDay(g, r); break;
+                    case 14: PalmBeach(g, r); break;
+                    case 15: LeafMeANote(g, r, headerHeight); break;
+                    case 16: Sunflower(g, r); break;
+                    case 17: GameDay(g, r, body, lineHeight); break;
+                    case 18: DollarNote(g, r); break;
+                    case 19: Spiral(g, r); break;
+                    case 20: DoodleSwirls(g, r); break;
+                    case 21: Geometric(g, r); break;
+                    case 22: Holographic(g, r, headerHeight); break;
+                    case 23: HauntedHill(g, r, headerHeight); break;
                 }
             }
             return bmp;
@@ -418,6 +492,334 @@ namespace QwenPad
                     g.DrawBezier(line, -2, y0 + H * 0.12f, W * 0.20f, y0 + H * 0.06f, W * 0.42f, y0 + H * 0.08f, W * 0.62f, H + 2);
                 }
             }
+        }
+
+        // ---------------------------------------------------------------- 10. Autumn Cat
+
+        static void AutumnCat(Graphics g, Rectangle r, int headerH)
+        {
+            using (var bg = new SolidBrush(Hex(0xB5835A))) g.FillRectangle(bg, r);
+            // White writing card, leaving a brown frame for the leaves and the cat.
+            int m = (int)Clamp(r.Width * 0.09f, 16, 40);
+            var card = Rectangle.FromLTRB(m, headerH - 2, r.Width - m, r.Height - (int)Clamp(r.Height * 0.14f, 40, 90));
+            using (var path = RoundRect(card, 18))
+            {
+                using (var fill = new SolidBrush(Hex(0xFBF6EE))) g.FillPath(fill, path);
+                using (var edge = new Pen(Color.FromArgb(70, Hex(0x6B4A2F)), 1.4f)) g.DrawPath(edge, path);
+            }
+            var rnd = new Random(1010);
+            Color[] leaves = { Hex(0xD9822B), Hex(0xC9462E), Hex(0xE8A33D), Hex(0x9A6A2E), Hex(0xB5532A) };
+            // Leaves, acorns and mushrooms around the brown frame.
+            foreach (var p in FramePoints(r, card, 30))
+            {
+                var c = leaves[rnd.Next(leaves.Length)];
+                int k = rnd.Next(5);
+                if (k == 0) Acorn(g, p.X - 4, p.Y - 4, 11);
+                else if (k == 1) Mushroom(g, p.X - 5, p.Y - 5, 12, rnd.Next(2) == 0);
+                else MapleLeaf(g, p.X, p.Y, 7 + rnd.Next(3), rnd.Next(360), c);
+            }
+            // A black cat in a scarf, sitting at the bottom of the frame.
+            float cs = Clamp(Math.Min(r.Width, r.Height) * 0.2f, 34, 74);
+            BlackCat(g, r.Width * 0.5f - cs * 0.5f, r.Height - cs - 2, cs);
+        }
+
+        // ---------------------------------------------------------------- 11. Capybara
+
+        static void Capybara(Graphics g, Rectangle r, int headerH)
+        {
+            float W = r.Width, H = r.Height, ground = H * 0.82f;
+            using (var bg = new SolidBrush(Hex(0xFBF1C9))) g.FillRectangle(bg, r);
+            using (var grass = new SolidBrush(Hex(0x9FD06A)))
+            using (var path = new GraphicsPath())
+            {
+                path.AddBezier(0, ground + H * 0.04f, W * 0.35f, ground - H * 0.02f, W * 0.7f, ground + H * 0.02f, W, ground);
+                path.AddLine(W, ground, W, H); path.AddLine(W, H, 0, H); path.CloseFigure();
+                g.FillPath(grass, path);
+            }
+            // Soft clouds and a few hearts.
+            Cloud(g, W * 0.04f, headerH + H * 0.06f, W * 0.4f, Color.FromArgb(60, Hex(0xE8C98A)));
+            Cloud(g, W * 0.52f, headerH + H * 0.02f, W * 0.4f, Color.FromArgb(60, Hex(0xE8C98A)));
+            var rnd = new Random(1111);
+            using (var star = new SolidBrush(Hex(0xF2B33D)))
+                for (int i = 0; i < 5; i++) Star(g, star, W * (0.1f + (float)rnd.NextDouble() * 0.8f), headerH + H * (0.1f + (float)rnd.NextDouble() * 0.3f), 2f + (float)rnd.NextDouble() * 2);
+            float cs = Clamp(Math.Min(W, H) * 0.42f, 58, 150);
+            CapybaraMascot(g, W - cs * 0.98f, ground - cs * 0.74f, cs);
+        }
+
+        // ---------------------------------------------------------------- 12. Sleepy Sloth
+
+        static void SleepySloth(Graphics g, Rectangle r, int headerH)
+        {
+            float W = r.Width, H = r.Height;
+            using (var bg = new LinearGradientBrush(new Rectangle(0, 0, Math.Max(1, (int)W), Math.Max(1, (int)H)), Hex(0xEFF4E6), Hex(0xE2EAD6), 90f)) g.FillRectangle(bg, r);
+            var rnd = new Random(1212);
+            using (var dot = new SolidBrush(Color.FromArgb(40, Hex(0x8AA06A))))
+                for (int i = 0; i < W * H / 900; i++) g.FillEllipse(dot, rnd.Next(r.Width), rnd.Next(r.Height), 3, 3);
+            // A branch across the top, just under the header, with a hanging sloth on the right.
+            float by = headerH + 8;
+            using (var branch = new Pen(Hex(0x6B4A2F), Math.Max(3f, H * 0.012f)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+                g.DrawLine(branch, 0, by, W, by - 4);
+            using (var leaf = new SolidBrush(Hex(0x5E8A3E)))
+                for (float x = W * 0.1f; x < W; x += W * 0.28f)
+                {
+                    g.FillEllipse(leaf, x, by - 10, 16, 8);
+                    g.FillEllipse(leaf, x + 18, by - 12, 14, 7);
+                }
+            float ss = Clamp(Math.Min(W, H) * 0.34f, 48, 120);
+            Sloth(g, W - ss * 1.12f, by - 2, ss);
+        }
+
+        // ---------------------------------------------------------------- 13. Beach Day
+
+        static void BeachDay(Graphics g, Rectangle r)
+        {
+            float W = r.Width, H = r.Height, sea = H * 0.6f, sand = H * 0.8f;
+            using (var sky = new LinearGradientBrush(new Rectangle(0, 0, Math.Max(1, (int)W), (int)sea + 1), Hex(0xBEE6F2), Hex(0xEAF7FB), 90f)) g.FillRectangle(sky, 0, 0, W, sea + 1);
+            // Sun with a soft glow, top-right.
+            float sx = W * 0.8f, sy = H * 0.2f, sr = Clamp(Math.Min(W, H) * 0.12f, 16, 44);
+            using (var glow = new GraphicsPath())
+            {
+                glow.AddEllipse(sx - sr * 2, sy - sr * 2, sr * 4, sr * 4);
+                using (var pg = new PathGradientBrush(glow) { CenterColor = Color.FromArgb(150, 255, 240, 180), SurroundColors = new[] { Color.FromArgb(0, 255, 240, 180) } }) g.FillPath(pg, glow);
+            }
+            using (var sun = new SolidBrush(Hex(0xFFE9A8))) g.FillEllipse(sun, sx - sr, sy - sr, sr * 2, sr * 2);
+            Cloud(g, W * 0.05f, H * 0.14f, W * 0.42f, Color.FromArgb(120, 255, 255, 255));
+            Cloud(g, W * 0.5f, H * 0.3f, W * 0.36f, Color.FromArgb(110, 255, 255, 255));
+            // Sea with a wavy shoreline, then sand.
+            using (var water = new LinearGradientBrush(new RectangleF(0, sea - 1, W, sand - sea + 2), Hex(0x6FD0DE), Hex(0x3AA8C8), 90f))
+            using (var wp = new GraphicsPath())
+            {
+                wp.AddBezier(0, sea, W * 0.3f, sea - H * 0.03f, W * 0.7f, sea + H * 0.03f, W, sea - H * 0.01f);
+                wp.AddLine(W, sea, W, sand); wp.AddLine(W, sand, 0, sand); wp.CloseFigure();
+                g.FillPath(water, wp);
+            }
+            using (var foam = new Pen(Color.FromArgb(180, 255, 255, 255), 2f))
+                g.DrawBezier(foam, 0, sand, W * 0.35f, sand - H * 0.03f, W * 0.65f, sand + H * 0.02f, W, sand - H * 0.01f);
+            using (var sandb = new LinearGradientBrush(new RectangleF(0, sand - 1, W, H - sand + 2), Hex(0xF4E4BA), Hex(0xE8D098), 90f)) g.FillRectangle(sandb, 0, sand - 1, W, H - sand + 2);
+        }
+
+        // ---------------------------------------------------------------- 14. Palm Beach
+
+        static void PalmBeach(Graphics g, Rectangle r)
+        {
+            float W = r.Width, H = r.Height, sea = H * 0.62f;
+            using (var sky = new LinearGradientBrush(new Rectangle(0, 0, Math.Max(1, (int)W), Math.Max(1, (int)H)), Hex(0xCFF0EC), Hex(0xF8EFD6), 90f)) g.FillRectangle(sky, r);
+            float sx = W * 0.72f, sy = H * 0.22f, sr = Clamp(Math.Min(W, H) * 0.1f, 14, 40);
+            using (var sun = new SolidBrush(Color.FromArgb(180, 255, 236, 180))) g.FillEllipse(sun, sx - sr, sy - sr, sr * 2, sr * 2);
+            using (var water = new SolidBrush(Hex(0x7FD2CC)))
+            using (var wp = new GraphicsPath())
+            {
+                wp.AddBezier(0, sea, W * 0.3f, sea - H * 0.02f, W * 0.7f, sea + H * 0.02f, W, sea);
+                wp.AddLine(W, sea, W, H * 0.82f); wp.AddLine(W, H * 0.82f, 0, H * 0.82f); wp.CloseFigure();
+                g.FillPath(water, wp);
+            }
+            using (var foam = new Pen(Color.FromArgb(160, 255, 255, 255), 2f) { DashStyle = DashStyle.Dot })
+                g.DrawBezier(foam, 0, sea, W * 0.3f, sea - H * 0.02f, W * 0.7f, sea + H * 0.02f, W, sea);
+            using (var sand = new SolidBrush(Hex(0xF2E4BE))) g.FillRectangle(sand, 0, H * 0.82f - 1, W, H - H * 0.82f + 2);
+            // Two palms, bottom-left.
+            float ph = Clamp(H * 0.5f, 70, 240);
+            PalmTree(g, W * 0.16f, H * 0.86f, ph);
+            PalmTree(g, W * 0.3f, H * 0.86f, ph * 0.76f);
+        }
+
+        // ---------------------------------------------------------------- 15. Leaf Me a Note
+
+        static void LeafMeANote(Graphics g, Rectangle r, int headerH)
+        {
+            float W = r.Width, H = r.Height;
+            using (var bg = new SolidBrush(Hex(0xF2F6C8))) g.FillRectangle(bg, r);
+            // Faint monstera-leaf watermarks.
+            var rnd = new Random(1515);
+            for (int i = 0; i < Math.Max(5, W * H / 22000); i++)
+                MonsteraLeaf(g, (float)rnd.NextDouble() * W, headerH + (float)rnd.NextDouble() * (H - headerH) * 0.8f, 14 + rnd.Next(16), rnd.Next(360), Color.FromArgb(70, 255, 255, 255));
+            // A row of smiley potted plants along the bottom.
+            int n = Math.Max(3, (int)(W / 90));
+            float pw = W / (n + 0.5f), ps = Clamp(pw * 0.6f, 20, 48);
+            for (int i = 0; i < n; i++) PottedPlant(g, pw * (i + 0.5f) - ps * 0.5f, H - ps * 1.5f - 2, ps, i);
+        }
+
+        // ---------------------------------------------------------------- 16. Sunflower
+
+        static void Sunflower(Graphics g, Rectangle r)
+        {
+            float W = r.Width, H = r.Height;
+            using (var bg = new SolidBrush(Hex(0xF6ECD2))) g.FillRectangle(bg, r);
+            using (var sunset = new LinearGradientBrush(new Rectangle(0, 0, Math.Max(1, (int)W), (int)(H * 0.4f) + 1), Color.FromArgb(150, Hex(0xF6C87A)), Color.FromArgb(0, Hex(0xF6C87A)), 90f)) g.FillRectangle(sunset, 0, 0, W, H * 0.4f);
+            float s = Clamp(Math.Min(W, H) * 0.26f, 34, 78);
+            SunflowerBloom(g, -s * 0.3f, -s * 0.3f, s);
+            SunflowerBloom(g, W - s * 0.7f, H - s * 0.7f, s * 1.1f);
+            SunflowerBloom(g, W - s * 0.5f, -s * 0.35f, s * 0.7f);
+            // A couple of leaves near the blooms.
+            using (var leaf = new SolidBrush(Hex(0x5E8A3E)))
+            {
+                g.FillEllipse(leaf, s * 0.3f, s * 0.5f, s * 0.5f, s * 0.26f);
+                g.FillEllipse(leaf, W - s * 0.9f, H - s * 0.95f, s * 0.5f, s * 0.26f);
+            }
+        }
+
+        // ---------------------------------------------------------------- 17. Game Day
+
+        static void GameDay(Graphics g, Rectangle r, Rectangle body, int lineH)
+        {
+            float W = r.Width, H = r.Height;
+            using (var bg = new SolidBrush(Hex(0x2E7D32))) g.FillRectangle(bg, r);
+            // Mowed vertical stripes.
+            using (var stripe = new SolidBrush(Color.FromArgb(30, 255, 255, 255)))
+                for (float x = 0; x < W; x += W / 7f * 2) g.FillRectangle(stripe, x, 0, W / 7f, H);
+            // Yard lines along the text, with hash marks.
+            using (var line = new Pen(Color.FromArgb(200, 255, 255, 255), 1.6f))
+            {
+                RuledLines(g, line, body, lineH, body.Left + 2, body.Right - 2);
+                using (var hash = new Pen(Color.FromArgb(150, 255, 255, 255), 1.4f))
+                    for (float y = body.Top + lineH - 2; y < body.Bottom; y += lineH)
+                        for (float x = body.Left + 14; x < body.Right; x += 26) g.DrawLine(hash, x, y - 3, x, y + 3);
+            }
+            // End-zone border lines.
+            using (var edge = new Pen(Color.FromArgb(220, 255, 255, 255), 2.5f)) { g.DrawLine(edge, 0, 6, W, 6); g.DrawLine(edge, 0, H - 6, W, H - 6); }
+            Football(g, W - Clamp(Math.Min(W, H) * 0.32f, 44, 96) - 6, H - Clamp(Math.Min(W, H) * 0.2f, 28, 60) - 10, Clamp(Math.Min(W, H) * 0.32f, 44, 96));
+        }
+
+        // ---------------------------------------------------------------- 18. Dollar Note
+
+        static void DollarNote(Graphics g, Rectangle r)
+        {
+            using (var bg = new SolidBrush(Hex(0xDCE3CE))) g.FillRectangle(bg, r);
+            var ink = Color.FromArgb(150, Hex(0x3A4A34));
+            // Fine guilloché wash.
+            var rnd = new Random(1818);
+            using (var fine = new Pen(Color.FromArgb(22, Hex(0x3A4A34)), 1f))
+                for (int i = 0; i < r.Height; i += 4) g.DrawLine(fine, 0, i, r.Width, i + (float)Math.Sin(i * 0.3) * 2);
+            // Double ornate border.
+            using (var pen = new Pen(ink, 1.6f))
+            {
+                var outer = Rectangle.Inflate(r, -8, -8); g.DrawRectangle(pen, outer);
+                var inner = Rectangle.Inflate(r, -14, -14); g.DrawRectangle(pen, inner);
+            }
+            using (var pen = new Pen(Color.FromArgb(90, Hex(0x3A4A34)), 1f))
+            {
+                var mid = Rectangle.Inflate(r, -11, -11);
+                g.DrawRectangle(pen, mid);
+            }
+            // Corner "1" medallions.
+            float m = Clamp(Math.Min(r.Width, r.Height) * 0.12f, 18, 36);
+            foreach (var p in new[] { new PointF(14 + m / 2, 14 + m / 2), new PointF(r.Width - 14 - m / 2, 14 + m / 2), new PointF(14 + m / 2, r.Height - 14 - m / 2), new PointF(r.Width - 14 - m / 2, r.Height - 14 - m / 2) })
+                Medallion(g, p.X, p.Y, m, ink);
+        }
+
+        // ---------------------------------------------------------------- 19. Spiral
+
+        static void Spiral(Graphics g, Rectangle r)
+        {
+            using (var bg = new SolidBrush(Hex(0xF7E0E6))) g.FillRectangle(bg, r);
+            float cx = r.Width * 0.82f, cy = r.Height * 0.84f;
+            float scale = Clamp(Math.Min(r.Width, r.Height) * 0.05f, 6, 16);
+            int n = 150;
+            using (var ink = new Pen(Color.FromArgb(170, Hex(0x9A3A56)), 1.3f))
+            using (var fill = new SolidBrush(Color.FromArgb(70, Hex(0xC76A86))))
+                for (int i = n; i >= 0; i--)
+                {
+                    double a = i * 2.399963;              // golden angle
+                    float rad = scale * (float)Math.Sqrt(i);
+                    float x = cx + (float)Math.Cos(a) * rad, y = cy + (float)Math.Sin(a) * rad;
+                    if (x < -20 || y < -20) continue;
+                    float pet = 2 + rad * 0.09f;
+                    var st = g.Save(); g.TranslateTransform(x, y); g.RotateTransform((float)(a * 180 / Math.PI) + 90);
+                    g.FillEllipse(fill, -pet * 0.5f, -pet, pet, pet * 2);
+                    g.DrawEllipse(ink, -pet * 0.5f, -pet, pet, pet * 2);
+                    g.Restore(st);
+                }
+        }
+
+        // ---------------------------------------------------------------- 20. Doodle Swirls
+
+        static void DoodleSwirls(Graphics g, Rectangle r)
+        {
+            using (var bg = new SolidBrush(Hex(0xFBF7EE))) g.FillRectangle(bg, r);
+            Color[] cols = { Hex(0xE8644A), Hex(0xF2A33D), Hex(0xF2C94C), Hex(0x6FB26A), Hex(0x4A90C4), Hex(0x9B6AB5) };
+            float band = Clamp(Math.Min(r.Width, r.Height) * 0.16f, 20, 46), step = band * 0.85f;
+            int ci = 0;
+            // Overlapping rainbow "scales" around the border.
+            foreach (var p in BorderRun(r, band * 0.5f, step))
+            {
+                float rad = band * 0.6f;
+                using (var pen = new Pen(cols[ci % cols.Length], Math.Max(2f, band * 0.09f)))
+                    for (int k = 0; k < 3; k++) g.DrawArc(pen, p.X - rad + k * 3, p.Y - rad + k * 3, (rad - k * 3) * 2, (rad - k * 3) * 2, 200, 140);
+                ci++;
+            }
+        }
+
+        // ---------------------------------------------------------------- 21. Geometric
+
+        static void Geometric(Graphics g, Rectangle r)
+        {
+            using (var bg = new SolidBrush(Hex(0x14121E))) g.FillRectangle(bg, r);
+            var rnd = new Random(2121);
+            using (var dot = new SolidBrush(Color.FromArgb(40, Hex(0x3FA34D))))
+                for (int i = 0; i < r.Width * r.Height / 1400; i++) g.FillEllipse(dot, rnd.Next(r.Width), rnd.Next(r.Height), 2, 2);
+            float m1 = Clamp(Math.Min(r.Width, r.Height) * 0.42f, 60, 150);
+            Mandala(g, r.Width * 0.84f, r.Height * 0.2f, m1 * 0.6f, Hex(0x3FA34D));
+            Mandala(g, r.Width * 0.14f, r.Height * 0.86f, m1 * 0.7f, Hex(0x56C06A));
+        }
+
+        // ---------------------------------------------------------------- 22. Holographic
+
+        static void Holographic(Graphics g, Rectangle r, int headerH)
+        {
+            float W = r.Width, H = r.Height;
+            using (var grad = new LinearGradientBrush(new Rectangle(0, 0, Math.Max(1, (int)W), Math.Max(1, (int)H)), Color.White, Color.White, 55f))
+            {
+                var blend = new ColorBlend(5);
+                blend.Colors = new[] { Hex(0xCBB8F0), Hex(0xB8E0F0), Hex(0xBFF0D8), Hex(0xFBE4C0), Hex(0xF6C6DE) };
+                blend.Positions = new[] { 0f, 0.3f, 0.55f, 0.8f, 1f };
+                grad.InterpolationColors = blend;
+                g.FillRectangle(grad, r);
+            }
+            // A saucer at top with a light beam, and sparkles.
+            float ux = W * 0.5f, uy = headerH + H * 0.1f, uw = Clamp(W * 0.36f, 60, 180);
+            using (var beam = new GraphicsPath())
+            {
+                beam.AddPolygon(new[] { new PointF(ux - uw * 0.18f, uy), new PointF(ux + uw * 0.18f, uy), new PointF(ux + uw * 0.5f, uy + H * 0.5f), new PointF(ux - uw * 0.5f, uy + H * 0.5f) });
+                using (var pg = new PathGradientBrush(beam) { CenterColor = Color.FromArgb(120, 255, 255, 255), SurroundColors = new[] { Color.FromArgb(10, 255, 255, 255) } }) g.FillPath(pg, beam);
+            }
+            Ufo(g, ux, uy, uw);
+            var rnd = new Random(2222);
+            using (var sp = new SolidBrush(Color.FromArgb(220, 255, 255, 255)))
+            using (var edge = new Pen(Color.FromArgb(120, Hex(0x9B7BD0)), 1f))
+                for (int i = 0; i < 10; i++) Sparkle4(g, (float)rnd.NextDouble() * W, headerH + (float)rnd.NextDouble() * (H - headerH), 3 + rnd.Next(4), sp, edge);
+        }
+
+        // ---------------------------------------------------------------- 23. Haunted Hill
+
+        static void HauntedHill(Graphics g, Rectangle r, int headerH)
+        {
+            float W = r.Width, H = r.Height;
+            using (var bg = new SolidBrush(Hex(0x120A0A))) g.FillRectangle(bg, r);
+            // Red moon glow, top area.
+            float mx = W * 0.3f, my = headerH + H * 0.18f, mr = Clamp(Math.Min(W, H) * 0.14f, 18, 48);
+            using (var glowPath = new GraphicsPath())
+            {
+                glowPath.AddEllipse(mx - mr * 3, my - mr * 3, mr * 6, mr * 6);
+                using (var pg = new PathGradientBrush(glowPath) { CenterColor = Color.FromArgb(90, Hex(0xC4402A)), SurroundColors = new[] { Color.FromArgb(0, Hex(0xC4402A)) } }) g.FillPath(pg, glowPath);
+            }
+            using (var moon = new SolidBrush(Hex(0xE86A3A))) g.FillEllipse(moon, mx - mr, my - mr, mr * 2, mr * 2);
+            var rnd = new Random(2323);
+            using (var star = new SolidBrush(Hex(0xE8A060)))
+                for (int i = 0; i < W * H / 1600; i++) { float x = rnd.Next(r.Width), y = headerH + rnd.Next((int)(H * 0.6f)); if (rnd.Next(3) == 0) Star(g, star, x, y, 2 + (float)rnd.NextDouble() * 2); else g.FillEllipse(star, x, y, 1.4f, 1.4f); }
+            // Bare crooked tree, right side.
+            BareTree(g, W * 0.8f, H, H * 0.6f, Hex(0x2A1810));
+            // Hill with pumpkins and mushrooms.
+            using (var hill = new SolidBrush(Hex(0x1E1008)))
+            using (var hp = new GraphicsPath())
+            {
+                hp.AddBezier(0, H * 0.86f, W * 0.3f, H * 0.78f, W * 0.7f, H * 0.82f, W, H * 0.76f);
+                hp.AddLine(W, H * 0.76f, W, H); hp.AddLine(W, H, 0, H); hp.CloseFigure();
+                g.FillPath(hill, hp);
+            }
+            float ps = Clamp(Math.Min(W, H) * 0.12f, 14, 30);
+            Pumpkin(g, W * 0.12f, H - ps * 1.1f, ps);
+            Pumpkin(g, W * 0.3f, H - ps * 0.95f, ps * 0.8f);
+            Mushroom(g, W * 0.56f, H - ps * 1.1f, ps * 0.8f, true);
+            Pumpkin(g, W * 0.68f, H - ps * 1.05f, ps);
         }
 
         // ---------------------------------------------------------------- shapes
@@ -1118,6 +1520,308 @@ namespace QwenPad
             using (var b = new SolidBrush(c)) g.FillEllipse(b, -s, -s * 0.45f, s * 2, s * 0.9f);
             using (var vein = new Pen(Color.FromArgb(150, Hex(0x7A2E10)), 1f)) { g.DrawLine(vein, -s, 0, s, 0); g.DrawLine(vein, -s - 3, 0, -s, 0); }
             g.Restore(st);
+        }
+
+        static GraphicsPath RoundRect(Rectangle r, int radius)
+        {
+            int d = radius * 2;
+            var p = new GraphicsPath();
+            if (r.Width < d || r.Height < d) { p.AddRectangle(r); return p; }
+            p.AddArc(r.Left, r.Top, d, d, 180, 90);
+            p.AddArc(r.Right - d, r.Top, d, d, 270, 90);
+            p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            p.AddArc(r.Left, r.Bottom - d, d, d, 90, 90);
+            p.CloseFigure();
+            return p;
+        }
+
+        /// <summary>Points in the frame between the note edge and an inner card, spaced about `step` apart.</summary>
+        static System.Collections.Generic.List<PointF> FramePoints(Rectangle outer, Rectangle card, float step)
+        {
+            var list = new System.Collections.Generic.List<PointF>();
+            var mid = Rectangle.FromLTRB((outer.Left + card.Left) / 2, (outer.Top + card.Top) / 2, (outer.Right + card.Right) / 2, (outer.Bottom + card.Bottom) / 2);
+            if (mid.Width < step || mid.Height < step) return list;
+            for (float x = mid.Left; x < mid.Right; x += step) { list.Add(new PointF(x, mid.Top)); list.Add(new PointF(x, mid.Bottom)); }
+            for (float y = mid.Top + step; y < mid.Bottom; y += step) { list.Add(new PointF(mid.Left, y)); list.Add(new PointF(mid.Right, y)); }
+            return list;
+        }
+
+        /// <summary>Points along a border band `inset` px in, spaced `step` apart (for repeating edge motifs).</summary>
+        static System.Collections.Generic.List<PointF> BorderRun(Rectangle r, float inset, float step)
+        {
+            var list = new System.Collections.Generic.List<PointF>();
+            float l = inset, t = inset, rt = r.Width - inset, b = r.Height - inset;
+            if (rt <= l || b <= t || step < 2) return list;
+            for (float x = l; x < rt; x += step) list.Add(new PointF(x, t));
+            for (float y = t + step; y < b; y += step) list.Add(new PointF(rt, y));
+            for (float x = rt; x > l; x -= step) list.Add(new PointF(x, b));
+            for (float y = b; y > t; y -= step) list.Add(new PointF(l, y));
+            return list;
+        }
+
+        static void BlackCat(Graphics g, float x, float y, float s)
+        {
+            var ink = Hex(0x1A1620);
+            using (var body = new SolidBrush(ink))
+            {
+                // Sitting body + head.
+                g.FillEllipse(body, x + s * 0.18f, y + s * 0.42f, s * 0.64f, s * 0.58f);
+                g.FillEllipse(body, x + s * 0.24f, y + s * 0.1f, s * 0.52f, s * 0.48f);
+                foreach (int side in new[] { -1, 1 })
+                {
+                    float m = x + s * 0.5f;
+                    g.FillPolygon(body, new[] { new PointF(m + side * s * 0.26f, y + s * 0.2f), new PointF(m + side * s * 0.34f, y - s * 0.04f), new PointF(m + side * s * 0.1f, y + s * 0.12f) });
+                }
+                // Curled tail.
+                g.FillEllipse(body, x + s * 0.68f, y + s * 0.74f, s * 0.3f, s * 0.18f);
+            }
+            using (var eye = new SolidBrush(Hex(0xF2C94C)))
+            {
+                g.FillEllipse(eye, x + s * 0.36f, y + s * 0.26f, s * 0.08f, s * 0.1f);
+                g.FillEllipse(eye, x + s * 0.56f, y + s * 0.26f, s * 0.08f, s * 0.1f);
+            }
+            using (var nose = new SolidBrush(Hex(0xF2A0A0))) g.FillPolygon(nose, new[] { new PointF(x + s * 0.47f, y + s * 0.38f), new PointF(x + s * 0.53f, y + s * 0.38f), new PointF(x + s * 0.5f, y + s * 0.42f) });
+            // Little blue scarf.
+            using (var scarf = new SolidBrush(Hex(0x4A90C4)))
+            {
+                g.FillRectangle(scarf, x + s * 0.24f, y + s * 0.5f, s * 0.52f, s * 0.12f);
+                g.FillPolygon(scarf, new[] { new PointF(x + s * 0.3f, y + s * 0.58f), new PointF(x + s * 0.44f, y + s * 0.58f), new PointF(x + s * 0.36f, y + s * 0.82f), new PointF(x + s * 0.26f, y + s * 0.78f) });
+            }
+        }
+
+        static void CapybaraMascot(Graphics g, float x, float y, float s)
+        {
+            var fur = Hex(0xB08A5A);
+            using (var b = new SolidBrush(fur))
+            using (var dark = new SolidBrush(Hex(0x8A6A42)))
+            using (var ink = new SolidBrush(Hex(0x3A2A1A)))
+            {
+                g.FillEllipse(b, x + s * 0.06f, y + s * 0.2f, s * 0.9f, s * 0.78f);   // body
+                g.FillEllipse(b, x + s * 0.2f, y, s * 0.62f, s * 0.56f);               // head
+                g.FillEllipse(dark, x + s * 0.24f, y - s * 0.02f, s * 0.12f, s * 0.1f);
+                g.FillEllipse(dark, x + s * 0.66f, y - s * 0.02f, s * 0.12f, s * 0.1f); // ears
+                g.FillEllipse(ink, x + s * 0.2f, y + s * 0.16f, s * 0.14f, s * 0.2f);   // big nose/muzzle
+                g.FillEllipse(ink, x + s * 0.4f, y + s * 0.14f, s * 0.05f, s * 0.07f);
+                g.FillEllipse(ink, x + s * 0.56f, y + s * 0.14f, s * 0.05f, s * 0.07f); // eyes
+                using (var cheek = new SolidBrush(Color.FromArgb(120, Hex(0xE98A7A)))) g.FillEllipse(cheek, x + s * 0.58f, y + s * 0.24f, s * 0.12f, s * 0.08f);
+                using (var bow = new SolidBrush(Hex(0xD9552A))) g.FillPolygon(bow, new[] { new PointF(x + s * 0.44f, y + s * 0.5f), new PointF(x + s * 0.56f, y + s * 0.5f), new PointF(x + s * 0.5f, y + s * 0.56f) });
+                g.FillEllipse(dark, x + s * 0.34f, y + s * 0.86f, s * 0.14f, s * 0.1f);
+                g.FillEllipse(dark, x + s * 0.54f, y + s * 0.86f, s * 0.14f, s * 0.1f); // feet
+            }
+        }
+
+        static void Sloth(Graphics g, float x, float y, float s)
+        {
+            var fur = Hex(0x9A8A6A);
+            using (var arm = new Pen(fur, Math.Max(3f, s * 0.14f)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            {
+                g.DrawLine(arm, x + s * 0.3f, y + s * 0.4f, x + s * 0.12f, y);   // arms up to branch
+                g.DrawLine(arm, x + s * 0.7f, y + s * 0.4f, x + s * 0.88f, y);
+            }
+            using (var claw = new Pen(Hex(0x4A3A2A), Math.Max(1.5f, s * 0.04f)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            {
+                g.DrawArc(claw, x + s * 0.02f, y - s * 0.08f, s * 0.2f, s * 0.2f, 20, 180);
+                g.DrawArc(claw, x + s * 0.78f, y - s * 0.08f, s * 0.2f, s * 0.2f, -20, 180);
+            }
+            using (var body = new SolidBrush(fur)) g.FillEllipse(body, x + s * 0.24f, y + s * 0.34f, s * 0.52f, s * 0.64f);
+            using (var face = new SolidBrush(Hex(0xC8B89A))) g.FillEllipse(face, x + s * 0.26f, y + s * 0.3f, s * 0.48f, s * 0.44f);
+            using (var mask = new SolidBrush(Hex(0x8A7458)))
+            {
+                g.FillEllipse(mask, x + s * 0.32f, y + s * 0.42f, s * 0.14f, s * 0.1f);
+                g.FillEllipse(mask, x + s * 0.54f, y + s * 0.42f, s * 0.14f, s * 0.1f);
+            }
+            using (var ink = new SolidBrush(Hex(0x2A2016)))
+            {
+                g.FillEllipse(ink, x + s * 0.37f, y + s * 0.45f, s * 0.05f, s * 0.05f);
+                g.FillEllipse(ink, x + s * 0.58f, y + s * 0.45f, s * 0.05f, s * 0.05f);
+                g.FillEllipse(ink, x + s * 0.46f, y + s * 0.54f, s * 0.08f, s * 0.06f);  // nose
+            }
+            using (var smile = new Pen(Hex(0x2A2016), Math.Max(1f, s * 0.025f))) g.DrawArc(smile, x + s * 0.4f, y + s * 0.54f, s * 0.2f, s * 0.14f, 20, 140);
+        }
+
+        static void PalmTree(Graphics g, float baseX, float baseY, float h)
+        {
+            using (var trunk = new Pen(Hex(0x8A6A3A), Math.Max(3f, h * 0.05f)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+                g.DrawBezier(trunk, baseX, baseY, baseX - h * 0.08f, baseY - h * 0.4f, baseX + h * 0.06f, baseY - h * 0.7f, baseX + h * 0.02f, baseY - h * 0.82f);
+            float tx = baseX + h * 0.02f, ty = baseY - h * 0.82f;
+            using (var frond = new SolidBrush(Hex(0x2A7A62)))
+                for (int i = 0; i < 6; i++)
+                {
+                    double a = Math.PI + i * Math.PI / 5;
+                    float ex = tx + (float)Math.Cos(a) * h * 0.4f, ey = ty + (float)Math.Sin(a) * h * 0.26f;
+                    float mx = (tx + ex) / 2 - (ey - ty) * 0.2f, my = (ty + ey) / 2 + (ex - tx) * 0.2f;
+                    using (var fp = new GraphicsPath())
+                    {
+                        fp.AddBezier(tx, ty, mx, my, ex, ey, mx + (ex - tx) * 0.1f, my + h * 0.05f);
+                        fp.AddBezier(mx + (ex - tx) * 0.1f, my + h * 0.05f, mx, my, tx, ty + h * 0.03f, tx, ty);
+                        fp.CloseFigure(); g.FillPath(frond, fp);
+                    }
+                }
+            using (var coco = new SolidBrush(Hex(0x6B4A2A))) g.FillEllipse(coco, tx - h * 0.04f, ty + h * 0.02f, h * 0.08f, h * 0.08f);
+        }
+
+        static void MonsteraLeaf(Graphics g, float cx, float cy, float s, float angle, Color c)
+        {
+            var st = g.Save();
+            g.TranslateTransform(cx, cy); g.RotateTransform(angle);
+            using (var b = new SolidBrush(c))
+            using (var leaf = new GraphicsPath())
+            {
+                leaf.AddBezier(0, s, -s * 0.9f, s * 0.4f, -s * 0.7f, -s * 0.8f, 0, -s);
+                leaf.AddBezier(0, -s, s * 0.7f, -s * 0.8f, s * 0.9f, s * 0.4f, 0, s);
+                leaf.CloseFigure();
+                var rgn = new Region(leaf);
+                // Split-leaf notches.
+                for (int side = -1; side <= 1; side += 2)
+                    for (int i = 0; i < 3; i++)
+                    {
+                        using (var notch = new GraphicsPath())
+                        {
+                            float ny = -s * 0.5f + i * s * 0.45f;
+                            notch.AddPolygon(new[] { new PointF(side * s * 0.1f, ny), new PointF(side * s * 0.95f, ny - s * 0.08f), new PointF(side * s * 0.95f, ny + s * 0.08f) });
+                            rgn.Exclude(notch);
+                        }
+                    }
+                g.FillRegion(b, rgn); rgn.Dispose();
+            }
+            g.Restore(st);
+        }
+
+        static void PottedPlant(Graphics g, float x, float y, float s, int variant)
+        {
+            Color[] pots = { Hex(0xE8644A), Hex(0xF2C94C), Hex(0x5AB0C8), Hex(0xB57AC8) };
+            using (var leaf = new SolidBrush(Hex(0x4E8A3E)))
+            using (var leaf2 = new SolidBrush(Hex(0x6EA84E)))
+            {
+                // A little clump of leaves above the pot.
+                for (int i = 0; i < 5; i++)
+                {
+                    double a = Math.PI + i * Math.PI / 5;
+                    float lx = x + s * 0.5f + (float)Math.Cos(a) * s * 0.3f, ly = y + s * 0.3f + (float)Math.Sin(a) * s * 0.3f;
+                    g.FillEllipse(i % 2 == 0 ? leaf : leaf2, lx - s * 0.1f, ly - s * 0.18f, s * 0.2f, s * 0.36f);
+                }
+            }
+            using (var pot = new SolidBrush(pots[variant % pots.Length]))
+            using (var pp = new GraphicsPath())
+            {
+                pp.AddPolygon(new[] { new PointF(x + s * 0.18f, y + s * 0.55f), new PointF(x + s * 0.82f, y + s * 0.55f), new PointF(x + s * 0.72f, y + s), new PointF(x + s * 0.28f, y + s) });
+                g.FillPath(pot, pp);
+            }
+            using (var ink = new SolidBrush(Hex(0x3A2A1A)))
+            {
+                g.FillEllipse(ink, x + s * 0.36f, y + s * 0.68f, s * 0.06f, s * 0.06f);
+                g.FillEllipse(ink, x + s * 0.58f, y + s * 0.68f, s * 0.06f, s * 0.06f);
+                using (var smile = new Pen(Hex(0x3A2A1A), Math.Max(1f, s * 0.03f))) g.DrawArc(smile, x + s * 0.4f, y + s * 0.74f, s * 0.2f, s * 0.12f, 20, 140);
+            }
+        }
+
+        static void SunflowerBloom(Graphics g, float x, float y, float s)
+        {
+            float cx = x + s * 0.5f, cy = y + s * 0.5f;
+            using (var petal = new SolidBrush(Hex(0xF2B028)))
+                for (int i = 0; i < 14; i++)
+                {
+                    double a = i * Math.PI * 2 / 14;
+                    var st = g.Save(); g.TranslateTransform(cx, cy); g.RotateTransform((float)(a * 180 / Math.PI));
+                    g.FillEllipse(petal, s * 0.22f, -s * 0.08f, s * 0.3f, s * 0.16f);
+                    g.Restore(st);
+                }
+            using (var center = new SolidBrush(Hex(0x6B4A2A))) g.FillEllipse(center, cx - s * 0.24f, cy - s * 0.24f, s * 0.48f, s * 0.48f);
+            using (var seeds = new SolidBrush(Color.FromArgb(120, Hex(0x3A2A14))))
+            {
+                var rnd = new Random((int)(x * 7 + y));
+                for (int i = 0; i < 16; i++) g.FillEllipse(seeds, cx - s * 0.2f + (float)rnd.NextDouble() * s * 0.4f, cy - s * 0.2f + (float)rnd.NextDouble() * s * 0.4f, s * 0.04f, s * 0.04f);
+            }
+        }
+
+        static void Football(Graphics g, float x, float y, float s)
+        {
+            float h = s * 0.62f;
+            using (var ball = new SolidBrush(Hex(0x7A4A2A)))
+            using (var shine = new SolidBrush(Color.FromArgb(50, 255, 255, 255)))
+            {
+                g.FillEllipse(ball, x, y, s, h);
+                g.FillEllipse(shine, x + s * 0.12f, y + h * 0.14f, s * 0.5f, h * 0.3f);
+            }
+            using (var white = new Pen(Color.FromArgb(240, 255, 255, 255), Math.Max(2f, s * 0.04f)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            {
+                g.DrawLine(white, x + s * 0.12f, y + h * 0.5f, x + s * 0.3f, y + h * 0.5f);
+                g.DrawLine(white, x + s * 0.7f, y + h * 0.5f, x + s * 0.88f, y + h * 0.5f);
+                float lx = x + s * 0.5f;
+                g.DrawLine(white, lx, y + h * 0.28f, lx, y + h * 0.72f);
+                for (int i = 0; i < 4; i++) { float ly = y + h * 0.34f + i * h * 0.12f; g.DrawLine(white, lx - s * 0.05f, ly, lx + s * 0.05f, ly); }
+            }
+        }
+
+        static void Medallion(Graphics g, float cx, float cy, float s, Color ink)
+        {
+            using (var pen = new Pen(ink, 1.3f))
+            {
+                g.DrawEllipse(pen, cx - s / 2, cy - s / 2, s, s);
+                g.DrawEllipse(pen, cx - s * 0.38f, cy - s * 0.38f, s * 0.76f, s * 0.76f);
+                for (int i = 0; i < 16; i++)
+                {
+                    double a = i * Math.PI / 8;
+                    g.DrawLine(pen, cx + (float)Math.Cos(a) * s * 0.38f, cy + (float)Math.Sin(a) * s * 0.38f, cx + (float)Math.Cos(a) * s * 0.5f, cy + (float)Math.Sin(a) * s * 0.5f);
+                }
+            }
+            using (var f = new Font("Georgia", s * 0.42f, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var b = new SolidBrush(ink))
+            {
+                var sz = g.MeasureString("1", f);
+                g.DrawString("1", f, b, cx - sz.Width / 2, cy - sz.Height / 2);
+            }
+        }
+
+        static void Mandala(Graphics g, float cx, float cy, float s, Color c)
+        {
+            using (var pen = new Pen(Color.FromArgb(200, c), 1.2f))
+            {
+                for (int ring = 1; ring <= 3; ring++)
+                {
+                    int sides = 3 + ring * 2;
+                    float rad = s * ring / 3f;
+                    for (int rot = 0; rot < 2; rot++)
+                    {
+                        var pts = new PointF[sides];
+                        float off = rot * (float)Math.PI / sides;
+                        for (int i = 0; i < sides; i++) { double a = off + i * Math.PI * 2 / sides - Math.PI / 2; pts[i] = new PointF(cx + (float)Math.Cos(a) * rad, cy + (float)Math.Sin(a) * rad); }
+                        g.DrawPolygon(pen, pts);
+                    }
+                }
+                g.DrawEllipse(pen, cx - s, cy - s, s * 2, s * 2);
+                g.DrawEllipse(pen, cx - s * 0.12f, cy - s * 0.12f, s * 0.24f, s * 0.24f);
+            }
+        }
+
+        static void Ufo(Graphics g, float cx, float cy, float w)
+        {
+            using (var dome = new SolidBrush(Hex(0xBFD8F0)))
+            using (var hull = new SolidBrush(Hex(0x8A8AA8)))
+            using (var hull2 = new SolidBrush(Hex(0x6A6A90)))
+            using (var light = new SolidBrush(Hex(0xF2E04C)))
+            {
+                g.FillEllipse(hull2, cx - w * 0.5f, cy - w * 0.06f, w, w * 0.22f);
+                g.FillEllipse(hull, cx - w * 0.5f, cy - w * 0.1f, w, w * 0.2f);
+                g.FillPie(dome, cx - w * 0.26f, cy - w * 0.26f, w * 0.52f, w * 0.44f, 180, 180);
+                for (int i = -2; i <= 2; i++) g.FillEllipse(light, cx + i * w * 0.16f - w * 0.03f, cy + w * 0.02f, w * 0.06f, w * 0.06f);
+            }
+        }
+
+        static void BareTree(Graphics g, float x, float baseY, float h, Color c)
+        {
+            using (var pen = new Pen(c, Math.Max(2f, h * 0.03f)) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+            {
+                g.DrawLine(pen, x, baseY, x - h * 0.05f, baseY - h * 0.5f);
+                float tx = x - h * 0.05f, ty = baseY - h * 0.5f;
+                g.DrawLine(pen, tx, ty, tx + h * 0.2f, ty - h * 0.2f);
+                g.DrawLine(pen, tx + h * 0.2f, ty - h * 0.2f, tx + h * 0.34f, ty - h * 0.16f);
+                g.DrawLine(pen, tx, ty, tx - h * 0.16f, ty - h * 0.24f);
+                g.DrawLine(pen, tx - h * 0.16f, ty - h * 0.24f, tx - h * 0.26f, ty - h * 0.2f);
+                g.DrawLine(pen, tx, ty, tx + h * 0.02f, ty - h * 0.3f);
+                g.DrawLine(pen, tx + h * 0.02f, ty - h * 0.3f, tx + h * 0.12f, ty - h * 0.42f);
+                g.DrawLine(pen, tx + h * 0.02f, ty - h * 0.3f, tx - h * 0.1f, ty - h * 0.4f);
+            }
         }
 
         static Color Hex(int rgb) { return Color.FromArgb((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF); }

@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.11.0] - 2026-10-22
+
+### Added
+- **14 new sticky note themes**, bringing the total to 23. They're grouped by category in each note's **⋯ > 🎨 Themes** menu:
+  - 🍂 **Fall:** Autumn Cat, Haunted Hill
+  - 🏖 **Summer:** Beach Day, Palm Beach, Leaf Me a Note, Sunflower
+  - 🐾 **Critters:** Capybara, Sleepy Sloth
+  - 🌀 **Patterns:** Spiral, Doodle Swirls, Geometric, Holographic, Dollar Note
+  - 🏈 **Sports:** Game Day
+- **Background Art** setting (⋯ menu): fade a theme's artwork from full down to a faint watermark over plain paper, independently of the note's overall opacity. The text, title and buttons stay fully solid.
+
+### Changed
+- The ⋯ menu now lists themes in per-category submenus (with thumbnails) instead of one long list.
+
 ## [1.10.0] - 2026-10-22
 
 ### Added
