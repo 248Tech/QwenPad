@@ -12,6 +12,9 @@
 - **Automatic GPU sharing.** Since the text and image models don't both fit on a typical GPU, starting an image pauses the text model and loads the image model; after a few idle minutes it unloads and the text model returns. The status bar shows which is loaded.
 - **Qwen > Image Model** menu: download the image model, stop the image engine, show its log. The image model (~11 GB) is fetched from Hugging Face on first use.
 
+### Fixed
+- **Notes could render partially invisible** on some designs (a regression from the compositing change in 1.11.1). That approach is removed. Instead, when a note's **Background Art** is turned down, the text now sits on solid paper so typing never smears; at full art the design still shows behind the text. This resolves the typing smear and the color flash too, without the compositing side effects.
+
 ### Notes
 - The default image setup uses an *uncensored* text encoder (refusal behavior removed); a standard encoder is also offered. The only prompts refused are ones that sexualize minors.
 - The **Qwen-Image-2.1 weights are under the Qwen Research License: research and evaluation use only. Commercial use requires a separate license from Alibaba.** QwenPad downloads the weights at your request; it does not redistribute them.

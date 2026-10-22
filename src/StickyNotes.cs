@@ -38,7 +38,7 @@ namespace QwenPad
 
         readonly NoteManager mgr;
         internal readonly string Id;
-        internal readonly RichTextBox Body = new EdgeRichTextBox();
+        internal readonly EdgeRichTextBox Body = new EdgeRichTextBox();
         readonly Panel header = new EdgePanel();
         readonly Label lblStatus = new EdgeLabel();
         readonly Panel titleRow = new EdgePanel();
@@ -403,6 +403,7 @@ namespace QwenPad
         internal void SetArtStrength(int percent)
         {
             ArtStrength = Math.Max(10, Math.Min(100, percent));
+            if (Design > 0) SetColor(ColorIndex);   // re-evaluates opaque/see-through paper for the new art level
             Invalidate(true);
         }
 
@@ -636,11 +637,15 @@ namespace QwenPad
                 Color paper = NoteDesigns.PaperOf(Design);
                 BackColor = Body.BackColor = paper;
                 Body.ForeColor = txtTitle.ForeColor = sketch.ForeColor = st.Text;
+                // Faded art → write on solid paper so typing never smears (a see-through box can't repaint under itself).
+                // Full art → see-through so the design shows behind the text.
+                Body.Transparent = ArtStrength >= 100;
                 lblDate.ForeColor = lblStatus.ForeColor = txtTitle.PlaceholderColor = st.Muted;
                 foreach (var b in headerButtons) b.ForeColor = st.HeaderFore;
                 foreach (var b in formatButtons.Values) b.ForeColor = st.Text;
                 Padding = new Padding(Math.Max(Grip, st.SideInset), 0, Math.Max(Grip, st.SideInset), Math.Max(GripBottom, st.BottomInset));
             }
+            else Body.Transparent = true;   // plain note: see-through over the uniform note color
             ApplyInkColor();
             UpdateDrawButtons();
             sketch.Invalidate();
@@ -1490,10 +1495,6 @@ namespace QwenPad
                 // A sizable frame is what makes Windows honor the resize edges reported by WM_NCHITTEST.
                 // WM_NCCALCSIZE below gives it zero thickness, so nothing about the note's look changes.
                 cp.Style |= WS_THICKFRAME;
-                // Composite children over a buffered background. A design shows through the transparent text box
-                // (WS_EX_TRANSPARENT); without compositing, the parent never repaints under it, so typing on a faded
-                // or plain design background leaves stale glyphs behind. Notes are small, so the cost is negligible.
-                cp.ExStyle |= WS_EX_COMPOSITED;
                 return cp;
             }
         }
@@ -1614,7 +1615,6 @@ namespace QwenPad
         const int HTTRANSPARENT = -1, HTLEFT = 10, HTRIGHT = 11, HTTOP = 12, HTTOPLEFT = 13, HTTOPRIGHT = 14;
         const int HTBOTTOM = 15, HTBOTTOMLEFT = 16, HTBOTTOMRIGHT = 17;
         const int CS_DROPSHADOW = 0x20000, WS_MINIMIZEBOX = 0x20000, WS_SYSMENU = 0x80000, WS_THICKFRAME = 0x40000;
-        const int WS_EX_COMPOSITED = 0x02000000;
         const int WM_NCCALCSIZE = 0x83, WM_NCPAINT = 0x85, WM_NCACTIVATE = 0x86, WM_SETTEXT = 0x0C, WM_SETICON = 0x80;
         const int GWL_STYLE = -16, GWL_EXSTYLE = -20, WS_VISIBLE = 0x10000000, WS_EX_TOPMOST = 0x8;
         const int EM_GETCHARFORMAT = 0x43A, EM_SETCHARFORMAT = 0x444, SCF_SELECTION = 1;
@@ -1661,6 +1661,18 @@ namespace QwenPad
     class TransparentRichTextBox : RichTextBox
     {
         static int msftedit;   // 0 unknown, 1 loaded, -1 unavailable
+        bool transparent = true;
+
+        /// <summary>
+        /// When true (the default), the box is see-through (WS_EX_TRANSPARENT) so a note design shows behind the text.
+        /// When false it paints an opaque BackColor and erases cleanly as you type — used on a faded design background,
+        /// where a see-through box would leave stale glyphs because the parent can't repaint under it.
+        /// </summary>
+        public bool Transparent
+        {
+            get { return transparent; }
+            set { if (transparent == value) return; transparent = value; if (IsHandleCreated) RecreateHandle(); }
+        }
 
         protected override CreateParams CreateParams
         {
@@ -1668,11 +1680,8 @@ namespace QwenPad
             {
                 if (msftedit == 0) msftedit = LoadLibrary("msftedit.dll") != IntPtr.Zero ? 1 : -1;
                 var cp = base.CreateParams;
-                if (msftedit == 1)
-                {
-                    cp.ClassName = "RICHEDIT50W";
-                    cp.ExStyle |= 0x20;   // WS_EX_TRANSPARENT
-                }
+                if (msftedit == 1) cp.ClassName = "RICHEDIT50W";
+                if (transparent) cp.ExStyle |= 0x20;   // WS_EX_TRANSPARENT
                 return cp;
             }
         }
