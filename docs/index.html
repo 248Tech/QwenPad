@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>QwenPad: Private Notepad for Windows with a Local AI Assistant (Offline)</title>
-<meta name="description" content="QwenPad is a free, open-source Notepad alternative for Windows with a built-in offline AI writing assistant. Rewrite, fix grammar, summarize and continue text with Qwen3.5 running locally via llama.cpp. Sticky notes, dark mode, portable, ~100 KB.">
-<meta name="keywords" content="notepad with AI, offline AI text editor, local LLM notepad, Windows notepad alternative, private AI writing assistant, Qwen3.5, llama.cpp GUI, GGUF, sticky notes, portable text editor, open source">
+<title>QwenPad: Beautiful Sticky Notes and a Private AI Notepad for Windows (Offline)</title>
+<meta name="description" content="Free, open-source desktop sticky notes and Notepad for Windows with an offline AI. 15 note designs, rich text, font colors, images, drawing, pin on top, notes that stay open and reopen at startup, plus Qwen3.5 running locally via llama.cpp. Portable, no account.">
+<meta name="keywords" content="sticky notes for Windows, desktop sticky notes, Windows Sticky Notes alternative, cute sticky notes, pin notes on top, notepad with AI, offline AI text editor, local LLM notepad, Windows notepad alternative, private AI writing assistant, Qwen3.5, llama.cpp GUI, GGUF, sticky notes, portable text editor, open source">
 <meta name="author" content="248Tech">
 <meta name="theme-color" content="#7c4dff">
 <link rel="canonical" href="https://248tech.github.io/QwenPad/">
@@ -13,14 +13,14 @@
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="QwenPad">
-<meta property="og:title" content="QwenPad: a tiny, private Notepad with a local AI">
-<meta property="og:description" content="Rewrite, fix, summarize and continue text with Qwen3.5, 100% offline on your Windows PC. Free and open source.">
+<meta property="og:title" content="QwenPad: beautiful sticky notes and a private AI notepad for Windows">
+<meta property="og:description" content="Desktop sticky notes with 15 designs, rich text, images and drawing, plus an offline AI (Qwen3.5) that tidies them up. Free and open source.">
 <meta property="og:url" content="https://248tech.github.io/QwenPad/">
 <meta property="og:image" content="https://248tech.github.io/QwenPad/images/social-preview.png">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="QwenPad: a tiny, private Notepad with a local AI">
+<meta name="twitter:title" content="QwenPad: beautiful sticky notes and a private AI notepad for Windows">
 <meta name="twitter:description" content="Offline AI writing assistant for Windows, powered by Qwen3.5 + llama.cpp. Free, open source, portable.">
 <meta name="twitter:image" content="https://248tech.github.io/QwenPad/images/social-preview.png">
 
@@ -29,19 +29,19 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "QwenPad",
-  "description": "A lightweight Notepad for Windows with a built-in offline AI writing assistant (Qwen3.5 via llama.cpp), sticky notes and dark mode.",
+  "description": "Desktop sticky notes and a lightweight Notepad for Windows with a built-in offline AI writing assistant (Qwen3.5 via llama.cpp).",
   "applicationCategory": "UtilitiesApplication",
   "applicationSubCategory": "Text editor",
   "operatingSystem": "Windows 10, Windows 11",
-  "softwareVersion": "1.9.0",
+  "softwareVersion": "1.10.0",
   "license": "https://opensource.org/licenses/MIT",
   "url": "https://248tech.github.io/QwenPad/",
   "downloadUrl": "https://github.com/248Tech/QwenPad/releases/latest",
   "codeRepository": "https://github.com/248Tech/QwenPad",
-  "image": "https://248tech.github.io/QwenPad/images/qwenpad-dark.png",
+  "image": "https://248tech.github.io/QwenPad/images/notes-hero.png",
   "author": { "@type": "Organization", "name": "248Tech", "url": "https://github.com/248Tech" },
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-  "featureList": "Offline AI rewrite, grammar fix, summarize, continue writing; sticky notes with AI; dark mode; portable; UTF-8/UTF-16/ANSI and CRLF/LF support"
+  "featureList": "Desktop sticky notes with 9 seasonal designs and 6 colors; rich text, font colors, images, GIFs and freehand drawing; pin on top and opacity; notes stay open after closing and reopen at Windows startup; 30-day trash and automatic backups; offline AI rewrite, grammar fix, summarize, continue writing; dark mode; portable"
 }
 </script>
 <script type="application/ld+json">
@@ -49,6 +49,10 @@
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
+    { "@type": "Question", "name": "Can I use QwenPad's sticky notes without the AI?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. The sticky notes work fully without a model. They have 15 designs, rich text, font colors, images, drawing, pin on top and opacity." } },
+    { "@type": "Question", "name": "Do QwenPad sticky notes stay on screen after closing the app?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. By default, closing QwenPad leaves your notes open with QwenPad in the tray, and Open Notes When Windows Starts reopens them after a restart." } },
     { "@type": "Question", "name": "Does QwenPad work offline?",
       "acceptedAnswer": { "@type": "Answer", "text": "Yes. After a one-time model download, QwenPad runs Qwen3.5 locally through llama.cpp and only talks to 127.0.0.1. No text ever leaves your PC." } },
     { "@type": "Question", "name": "Do I need an NVIDIA GPU?",
@@ -102,24 +106,54 @@
   <header class="hero">
     <img class="logo" src="images/icon-256.png" alt="QwenPad logo">
     <h1>QwenPad</h1>
-    <p class="tagline">A tiny, private Notepad for Windows with a <strong>local AI writing assistant</strong>. Rewrite, fix, summarize and continue text with Qwen3.5, 100% offline.</p>
+    <p class="tagline"><strong>Beautiful desktop sticky notes</strong> and a tiny Notepad for Windows, with a private AI that runs on your own PC. Jot it down, make it pretty, pin it on top, and let Qwen3.5 tidy it up, 100% offline.</p>
     <div class="cta">
       <a class="btn primary" href="https://github.com/248Tech/QwenPad/releases/latest">⬇ Download for Windows</a>
       <a class="btn" href="https://github.com/248Tech/QwenPad">★ View on GitHub</a>
     </div>
     <p class="meta">Free &amp; open source (MIT) · Windows 10/11 · Portable, no installer</p>
-    <div class="shot"><img src="images/qwenpad-dark.png" alt="QwenPad editor in dark mode with AI-generated sticky note" width="1712" height="802"></div>
+    <div class="shot"><img src="images/notes-hero.png" alt="QwenPad sticky notes on the desktop in Snowman Night, Cozy Critters and Hedgehog Hollow designs, with a pinned AI summary note and the editor in dark mode" width="1760" height="820"></div>
   </header>
+
+  <section>
+    <h2>Sticky notes you'll actually enjoy</h2>
+    <div class="grid">
+      <div class="card"><h3>🎨 15 looks</h3><p>Nine hand-illustrated seasonal designs (fall and winter) plus six classic colors, with a handwritten font, titles and dates.</p></div>
+      <div class="card"><h3>✍️ Rich notes</h3><p>Bold, italic, strikethrough, bullets, font colors, images, animated GIFs and freehand drawing with a pen, highlighter and eraser.</p></div>
+      <div class="card"><h3>📌 Always in view</h3><p>Pin notes above every window, set their opacity, and stack them with Ctrl+scroll. Each note is a real window.</p></div>
+      <div class="card"><h3>🖥️ Stay on your desktop</h3><p>Close QwenPad and your notes stay on screen. Turn on "Open Notes When Windows Starts" and they're back after every restart.</p></div>
+      <div class="card"><h3>✦ AI in every note</h3><p>Ctrl+K rewrites or adds to a note, untitled notes get titles, and a pasted email becomes a stack of task notes.</p></div>
+      <div class="card"><h3>🛟 Never lose one</h3><p>Crash-safe saves, a 30-day trash, daily backups and one-click import from other copies.</p></div>
+    </div>
+    <div class="shot"><img src="images/notes-designs.png" alt="All QwenPad sticky note designs: Spooky Night, Pumpkin Patch, Moonlit Ghost, Harvest Moon, Hedgehog Hollow, Doodle Pumpkins, Snowflake Frost, Cozy Critters, Snowman Night and six classic colors" loading="lazy" width="1870" height="900"></div>
+    <div class="shot"><img src="images/notes-features.png" alt="QwenPad sticky note features: rich text and font colors with an image, freehand drawing, a pinned see-through note, and the searchable Notes List" loading="lazy" width="1520" height="660"></div>
+  </section>
+
+  <section>
+    <h2>Sticky note shortcuts</h2>
+    <table>
+      <tr><th>Shortcut</th><th>In a sticky note</th></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>N</kbd></td><td>New note beside this one, in the same design</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>K</kbd></td><td>Ask Qwen to rewrite the selection or write at the cursor</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>B</kbd> / <kbd>I</kbd> / <kbd>U</kbd> / <kbd>T</kbd></td><td>Bold, italic, underline, strikethrough</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd></td><td>Bullets</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>Pin on top of all windows</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>W</kbd> / <kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>Hide (stays saved) / delete (to the 30-day trash)</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+scroll</td><td>Move the note forward or back in the stack</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> in the editor</td><td>Notes List: search and open every note</td></tr>
+    </table>
+    <p class="meta" style="text-align:center">See the <a href="https://github.com/248Tech/QwenPad#-complete-command-reference">complete command reference</a> for every menu item and shortcut.</p>
+  </section>
 
   <section>
     <h2>Fast like Notepad. Smart like an AI editor. Private like paper.</h2>
     <div class="grid">
-      <div class="card"><h3>⚡ Tiny and instant</h3><p>A ~100 KB native app that opens in well under a second. No Electron, no installer, no account.</p></div>
+      <div class="card"><h3>⚡ Tiny and instant</h3><p>A ~230 KB native app that opens in well under a second. No Electron, no installer, no account.</p></div>
       <div class="card"><h3>🔒 Truly offline</h3><p>Qwen3.5 runs on your PC through llama.cpp. QwenPad only talks to 127.0.0.1, so your text never leaves the machine.</p></div>
       <div class="card"><h3>✦ AI where you type</h3><p>Rewrite, fix grammar, change tone, translate, summarize or continue with one shortcut. It streams live and undoes in one step.</p></div>
-      <div class="card"><h3>🗒️ Sticky notes</h3><p>Desktop notes in six colors, with the same AI built in. Saved as plain text files.</p></div>
       <div class="card"><h3>🌙 Dark mode</h3><p>Follows Windows automatically, from the title bar and menus to the scrollbars and notes.</p></div>
       <div class="card"><h3>🎒 Portable</h3><p>Unzip anywhere, even a USB stick. Settings, notes and models stay in one folder.</p></div>
+      <div class="card"><h3>🆓 Free and open source</h3><p>MIT licensed, with no ads, no subscription and no telemetry.</p></div>
     </div>
   </section>
 
@@ -157,6 +191,9 @@
 
   <section>
     <h2>FAQ</h2>
+    <details><summary>Can I use the sticky notes without the AI?</summary><p>Yes. Notes work fully without a model; the AI is there when you want it.</p></details>
+    <details><summary>Do my notes stay on screen after I close QwenPad?</summary><p>Yes, by default. QwenPad waits in the tray with the model unloaded. Turn on Notes &gt; Open Notes When Windows Starts to bring them back after every restart.</p></details>
+    <details><summary>What if I delete a note by mistake?</summary><p>Notes &gt; Restore Deleted Notes brings back anything deleted in the last 30 days, and the backups folder keeps daily copies.</p></details>
     <details><summary>Does QwenPad work offline?</summary><p>Yes. After a one-time model download, it runs Qwen3.5 locally through llama.cpp and only talks to 127.0.0.1.</p></details>
     <details><summary>Do I need an NVIDIA GPU?</summary><p>No. A CUDA GPU makes it faster, but llama.cpp falls back to the CPU. Choose the 4B model on CPU-only PCs.</p></details>
     <details><summary>Is it free?</summary><p>Yes, free and open source under the MIT license.</p></details>

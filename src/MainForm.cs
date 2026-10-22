@@ -51,7 +51,7 @@ namespace QwenPad
         readonly List<ToolStripItem> aiItems = new List<ToolStripItem>();
 
         ToolStripMenuItem miWordWrap, miStatusBar, miStop, miServer;
-        ToolStripMenuItem miNotes, miClickableImages;
+        ToolStripMenuItem miNotes, miClickableImages, miKeepNotesOpen, miNotesAtStartup;
         int notesStaticCount;
 
         // Document state
@@ -87,8 +87,9 @@ namespace QwenPad
         string printText;
         int printPos;
 
-        public MainForm(string fileToOpen)
+        public MainForm(string fileToOpen, bool notesOnly = false)
         {
+            startHidden = notesOnly;
             llm = new LlmClient(settings);
             noteLlm = new LlmClient(settings);
             titleLlm = new LlmClient(settings);
@@ -140,7 +141,7 @@ namespace QwenPad
             Controls.Add(menu);
             MainMenuStrip = menu;
 
-            uiTimer.Tick += delegate { UpdatePosition(); };
+            uiTimer.Tick += delegate { UpdatePosition(); CheckBackgroundExit(); };
             uiTimer.Start();
             healthTimer.Tick += delegate { PollHealth(); };
 
@@ -165,6 +166,7 @@ namespace QwenPad
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
+            shownOnce = true;
             if (notes.Available)   // claims and reopens saved sticky notes, keeping focus on the editor
             {
                 Activate();
@@ -281,6 +283,14 @@ namespace QwenPad
                     notes.ApplyImageMode();
                     ShowNote(settings.ClickableImages ? "Clicking a note's image now opens it." : "Images no longer open on click (right-click > Open still works).");
                 })),
+                (miKeepNotesOpen = Item("&Keep Notes Open When QwenPad Closes", Keys.None, delegate
+                {
+                    settings.KeepNotesOpen = !settings.KeepNotesOpen;
+                    settings.Save();
+                    ShowNote(settings.KeepNotesOpen ? "Closing QwenPad now leaves your sticky notes open (QwenPad waits in the tray)."
+                                                    : "Closing QwenPad now closes the sticky notes too.");
+                })),
+                (miNotesAtStartup = Item("Open Notes When &Windows Starts", Keys.None, delegate { SetStartWithWindows(!StartsWithWindows()); })),
                 new ToolStripSeparator(),
                 Item("&Restore Deleted Notes...", Keys.None, delegate { if (NotesAvailable()) RestoreDeletedNotes(); }),
                 Item("I&mport Notes...", Keys.None, delegate { if (NotesAvailable()) ImportNotes(); }),
@@ -1338,6 +1348,10 @@ namespace QwenPad
             items[7].Enabled = available && notes.CountPinned() > 0;
             miClickableImages.Checked = settings.ClickableImages;
             miClickableImages.ToolTipText = "When on, clicking an image in a sticky note opens it. Right-click > Open always works.";
+            miKeepNotesOpen.Checked = settings.KeepNotesOpen;
+            miKeepNotesOpen.ToolTipText = "Closing QwenPad leaves your notes on screen; QwenPad waits in the tray with the model unloaded.";
+            miNotesAtStartup.Checked = StartsWithWindows();
+            miNotesAtStartup.ToolTipText = "Reopens your sticky notes (without the editor or the model) when you sign in.";
             if (!available)
             {
                 items.Add(new ToolStripMenuItem("Notes are open in another QwenPad window") { Enabled = false });
@@ -1486,6 +1500,7 @@ namespace QwenPad
         void InsertFromNote(string text)
         {
             if (generating || text.Length == 0) return;
+            if (background) LeaveBackground(null);
             Activate();
             editor.Focus();
             editor.Paste(NormalizeNewlines(text));
@@ -1721,6 +1736,185 @@ namespace QwenPad
 
         #endregion
 
+        #region Notes stay open (tray)
+
+        // Closing QwenPad while sticky notes are on screen hides the editor instead of exiting: the notes stay open,
+        // QwenPad waits in the tray (with the model unloaded), and launching QwenPad again brings this window back.
+        // QwenPad exits for real when the last note is hidden or deleted, or from the tray's Quit.
+        bool startHidden, shownOnce, background, quitting;
+        NotifyIcon tray;
+        EventWaitHandle wake;
+        RegisteredWaitHandle wakeWait;
+        const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run", RunValue = "QwenPad Sticky Notes";
+
+        protected override void SetVisibleCore(bool value)
+        {
+            if (startHidden)
+            {
+                // Started with --notes: open the notes without ever showing the editor.
+                startHidden = false;
+                if (!IsHandleCreated) CreateHandle();
+                base.SetVisibleCore(false);
+                BeginInvoke((Action)(() =>
+                {
+                    if (!notes.Available || notes.CountVisible() == 0) { quitting = true; Close(); return; }
+                    EnterBackground();
+                }));
+                return;
+            }
+            base.SetVisibleCore(value);
+        }
+
+        void EnterBackground()
+        {
+            background = true;
+            CancelGeneration();
+            if (Visible)
+            {
+                settings.Maximized = WindowState == FormWindowState.Maximized;
+                settings.Bounds = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+                settings.StatusBar = status.Visible;
+            }
+            Hide();
+            NewDocument();   // the editor was saved or discarded already; it reopens empty, like a fresh start
+            // Free the GPU while only notes are open; Ctrl+K in a note offers to load the model again.
+            if (server.Running) { server.Stop(); serverState = "offline"; SetAiStatus(); }
+            StartWakeListener();
+            if (tray == null) tray = BuildTray();
+            UpdateTray();
+            tray.Visible = true;
+            if (!settings.NotesTrayTipShown)
+            {
+                settings.NotesTrayTipShown = true;
+                tray.ShowBalloonTip(6000, "Your sticky notes stay open",
+                    "QwenPad is in the tray. Open QwenPad again to get the editor back, or right-click this icon to quit.", ToolTipIcon.Info);
+            }
+            settings.Save();
+        }
+
+        void LeaveBackground(string file)
+        {
+            if (!background) { if (file != null) OpenFromWake(file); Activate(); return; }
+            background = false;
+            StopWakeListener();
+            if (tray != null) tray.Visible = false;
+            Show();
+            if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+            Activate();
+            if (file != null) OpenFromWake(file);
+            // The first Show runs OnShown (health check and model start); after that, start the model here.
+            if (shownOnce && serverState == "offline" && settings.AutoStartServer) StartServer(false);
+        }
+
+        void OpenFromWake(string file)
+        {
+            if (file.Length == 0 || !ConfirmDiscard()) return;
+            if (File.Exists(file)) OpenFile(file);
+            else { NewDocument(); filePath = file; UpdateTitle(); }
+        }
+
+        /// <summary>Exits for real: the editor is closed and the notes close with it (they reopen next time).</summary>
+        void QuitCompletely()
+        {
+            quitting = true;
+            Close();
+        }
+
+        void CheckBackgroundExit()
+        {
+            if (!background || quitting) return;
+            // Nothing left on screen: there's no reason to keep running.
+            if (notes.CountVisible() == 0) QuitCompletely();
+            else UpdateTray();
+        }
+
+        void StartWakeListener()
+        {
+            if (wake != null) return;
+            try
+            {
+                wake = new EventWaitHandle(false, EventResetMode.AutoReset, Program.WakeName);
+                wakeWait = ThreadPool.RegisterWaitForSingleObject(wake, (s, timedOut) =>
+                {
+                    string file = "";
+                    try { file = File.ReadAllText(Program.WakeFile).Trim(); File.Delete(Program.WakeFile); } catch { }
+                    SafeInvoke(() => LeaveBackground(file));
+                }, null, -1, false);
+            }
+            catch { StopWakeListener(); }
+        }
+
+        void StopWakeListener()
+        {
+            if (wakeWait != null) { wakeWait.Unregister(null); wakeWait = null; }
+            if (wake != null) { wake.Dispose(); wake = null; }
+        }
+
+        NotifyIcon BuildTray()
+        {
+            var t = new NotifyIcon { Icon = Icon ?? SystemIcons.Application };
+            var cm = new ContextMenuStrip();
+            var open = new ToolStripMenuItem("&Open QwenPad", null, delegate { LeaveBackground(null); }) { Font = new Font(cm.Font, FontStyle.Bold) };
+            var startup = new ToolStripMenuItem("Open Notes When &Windows Starts", null, delegate { SetStartWithWindows(!StartsWithWindows()); });
+            cm.Items.AddRange(new ToolStripItem[]
+            {
+                open,
+                new ToolStripSeparator(),
+                new ToolStripMenuItem("&New Sticky Note", null, delegate { notes.New("", Screen.PrimaryScreen.WorkingArea); }),
+                new ToolStripMenuItem("☰ Notes &List...", null, delegate { notes.ShowList(null); }),
+                new ToolStripMenuItem("Show &All Notes", null, delegate { notes.ShowAll(); }),
+                new ToolStripSeparator(),
+                startup,
+                new ToolStripSeparator(),
+                new ToolStripMenuItem("&Quit QwenPad", null, delegate { QuitCompletely(); }) { ToolTipText = "Closes the sticky notes too; they reopen next time" }
+            });
+            cm.Opening += delegate { startup.Checked = StartsWithWindows(); };
+            t.ContextMenuStrip = cm;
+            t.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) LeaveBackground(null); };
+            return t;
+        }
+
+        void UpdateTray()
+        {
+            if (tray == null) return;
+            int n = notes.CountVisible();
+            string text = "QwenPad: " + n + (n == 1 ? " sticky note open" : " sticky notes open");
+            tray.Text = text.Length > 63 ? text.Substring(0, 63) : text;
+        }
+
+        static bool StartsWithWindows()
+        {
+            try
+            {
+                using (var k = Registry.CurrentUser.OpenSubKey(RunKey))
+                {
+                    var v = k == null ? null : k.GetValue(RunValue) as string;
+                    return v != null && v.IndexOf(Application.ExecutablePath, StringComparison.OrdinalIgnoreCase) >= 0;
+                }
+            }
+            catch { return false; }
+        }
+
+        /// <summary>Adds or removes "QwenPad --notes" in the user's startup programs, so notes come back after a restart.</summary>
+        void SetStartWithWindows(bool on)
+        {
+            try
+            {
+                using (var k = Registry.CurrentUser.CreateSubKey(RunKey))
+                {
+                    if (on) k.SetValue(RunValue, "\"" + Application.ExecutablePath + "\" " + Program.NotesSwitch);
+                    else k.DeleteValue(RunValue, false);
+                }
+                ShowNote(on ? "Your sticky notes will open when you sign in to Windows." : "Sticky notes won't open at sign-in.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Couldn't change the startup setting:\n" + ex.Message, AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        #endregion
+
         #region Form plumbing
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
@@ -1731,8 +1925,18 @@ namespace QwenPad
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            if (background) { base.OnFormClosing(e); return; }   // quitting from the tray, or Windows is shutting down
             notes.ExitStarting();
             if (!ConfirmDiscard()) { e.Cancel = true; notes.ExitCanceled(); return; }
+            // With notes on screen, closing QwenPad just closes the editor: the notes stay open, QwenPad waits in the tray.
+            if (!quitting && settings.KeepNotesOpen && e.CloseReason != CloseReason.WindowsShutDown &&
+                e.CloseReason != CloseReason.ApplicationExitCall && notes.Available && notes.CountVisible() > 0)
+            {
+                e.Cancel = true;
+                notes.ExitCanceled();
+                EnterBackground();
+                return;
+            }
             CancelGeneration();
             settings.Maximized = WindowState == FormWindowState.Maximized;
             settings.Bounds = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
@@ -1747,6 +1951,8 @@ namespace QwenPad
             healthTimer.Stop();
             SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
             Theme.Changed -= OnThemeChanged;
+            StopWakeListener();
+            if (tray != null) { tray.Visible = false; tray.Dispose(); }
             notes.Dispose();
             server.Dispose();
             base.OnFormClosed(e);

@@ -41,7 +41,7 @@ namespace QwenPad
                 case 3: return new Style { Text = Hex(0x2A2638), Muted = Hex(0x7B7590), HeaderFore = Hex(0xE9C46A), Hover = light, SideInset = 26, BottomInset = 26, DarkHeader = true };
                 case 4: return new Style { Text = Hex(0x1F3A3D), Muted = Hex(0x3F6D70), HeaderFore = Hex(0x1F3A3D), Hover = dark, SideInset = 10, BottomInset = 14 };
                 case 5: return new Style { Text = Hex(0x4A2E1A), Muted = Hex(0x9A6B42), HeaderFore = Hex(0x4A2E1A), Hover = dark, SideInset = 24, BottomInset = 26 };
-                case 6: return new Style { Text = Hex(0x3A2436), Muted = Hex(0x96708C), HeaderFore = Hex(0x3A2436), Hover = dark, SideInset = 24, BottomInset = 16 };
+                case 6: return new Style { Text = Hex(0x3A2436), Muted = Hex(0x96708C), HeaderFore = Hex(0x3A2436), Hover = dark, SideInset = 34, BottomInset = 16 };
                 case 7: return new Style { Text = Hex(0x0E3646), Muted = Hex(0x2F6A7E), HeaderFore = Hex(0xFFFFFF), Hover = light, SideInset = 24, BottomInset = 24, DarkHeader = true };
                 case 8: return new Style { Text = Hex(0x2C3A4C), Muted = Hex(0x7A8DA3), HeaderFore = Hex(0x2C3A4C), Hover = dark, SideInset = 10, BottomInset = 12 };
                 case 9: return new Style { Text = Hex(0x23264A), Muted = Hex(0x4B4F7E), HeaderFore = Hex(0x23264A), Hover = dark, SideInset = 10, BottomInset = 12 };
@@ -258,15 +258,15 @@ namespace QwenPad
                 if (rnd.Next(9) == 0) Acorn(g, px - 3, py - 3, 8);
             }
             float s = Clamp(Math.Min(r.Width, r.Height) * 0.16f, 20, 42);
-            // Mushrooms and hedgehogs nestled in the wreath.
-            Mushroom(g, 3, r.Height * 0.62f, s * 0.55f, false);
-            Mushroom(g, s * 0.45f, r.Height * 0.62f + s * 0.15f, s * 0.4f, true);
-            Mushroom(g, r.Width - s * 0.62f, r.Height * 0.70f, s * 0.6f, true);
+            // Mushrooms and hedgehogs nestled in the wreath, low down, where text reaches last.
+            Mushroom(g, 3, r.Height * 0.46f, s * 0.55f, false);
+            Mushroom(g, s * 0.45f, r.Height * 0.46f + s * 0.15f, s * 0.4f, true);
+            Mushroom(g, r.Width - s * 0.62f, r.Height * 0.40f, s * 0.6f, true);
             Mushroom(g, r.Width * 0.18f, r.Height - s * 0.62f, s * 0.5f, false);
-            Acorn(g, r.Width - s * 0.5f, r.Height * 0.40f, s * 0.35f);
+            Acorn(g, r.Width - s * 0.5f, r.Height * 0.30f, s * 0.35f);
             Acorn(g, r.Width * 0.30f, r.Height - s * 0.45f, s * 0.32f);
-            Hedgehog(g, 1, r.Height * 0.36f, s, true);
-            Hedgehog(g, r.Width - s * 1.3f - 1, r.Height * 0.22f + 20, s * 0.8f, false);
+            Hedgehog(g, 1, r.Height * 0.68f, s, true);
+            Hedgehog(g, r.Width - s * 1.3f - 1, r.Height * 0.56f, s * 0.8f, false);
             Hedgehog(g, r.Width * 0.58f, r.Height - s * 0.85f - 1, s * 1.05f, false);
         }
 
@@ -279,7 +279,7 @@ namespace QwenPad
             using (var speck = new SolidBrush(Color.FromArgb(14, Hex(0x7A4A6A))))
                 for (int i = 0; i < r.Width * r.Height / 60; i++) g.FillRectangle(speck, rnd.Next(r.Width), rnd.Next(r.Height), 1, 1);
             var ink = Hex(0x3A2436);
-            float s = Clamp(Math.Min(r.Width, r.Height) * 0.22f, 26, 64), W = r.Width, H = r.Height;
+            float s = Clamp(Math.Min(r.Width, r.Height) * 0.2f, 26, 50), W = r.Width, H = r.Height;
 
             // Little doodle flowers and sparkles in the margins, then the pumpkins over them.
             float[] flowers = { 0.06f, 0.30f, 0.94f, 0.36f, 0.10f, 0.62f, 0.90f, 0.86f, 0.30f, 0.95f, 0.70f, 0.96f };

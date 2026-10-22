@@ -462,7 +462,8 @@ namespace QwenPad
         void UpdateDate()
         {
             var d = CreatedOn;
-            lblDate.Text = d.Date == DateTime.Today ? "Today, " + d.ToShortTimeString()
+            // Today's notes show just the time, leaving room for the title (hover for the full dates).
+            lblDate.Text = d.Date == DateTime.Today ? d.ToShortTimeString()
                 : d.Year == DateTime.Today.Year ? d.ToString("MMM d") : d.ToString("MMM d, yyyy");
             dateTip.SetToolTip(lblDate, "Created " + CreatedOn.ToString("f") + "\nEdited " + ModifiedOn.ToString("f"));
         }
