@@ -226,12 +226,20 @@ namespace QwenPad
                 menu.Items.Add(new ToolStripMenuItem(ColorNames[i], Swatch(i), delegate { SetDesign(0); SetColor(c); mgr.MarkDirty(this); }));
             }
             miTop = new ToolStripMenuItem("📌 &Pin on Top of All Windows", null, delegate { SetPinned(!TopMost); }) { ShortcutKeyDisplayString = "Ctrl+P" };
-            var miDesigns = new ToolStripMenuItem("🍂 Fall &Designs");
-            for (int d = 0; d < NoteDesigns.Count; d++)
+            // Fall designs sit right under the colors, so colors and designs read as one palette.
+            menu.Items.Add(new ToolStripSeparator());
+            var designItems = new List<ToolStripMenuItem>();
+            for (int d = 1; d < NoteDesigns.Count; d++)
             {
                 int dd = d;
-                miDesigns.DropDownItems.Add(new ToolStripMenuItem(NoteDesigns.Names[d], d == 0 ? Swatch(ColorIndex) : NoteDesigns.Thumbnail(d, 16, 16),
-                    delegate { SetDesign(dd); }) { Tag = d });
+                var item = new ToolStripMenuItem("🍂 " + NoteDesigns.Names[d], NoteDesigns.Thumbnail(d, 20, 20), delegate { SetDesign(dd); })
+                {
+                    Tag = d,
+                    ImageScaling = ToolStripItemImageScaling.None,
+                    ToolTipText = "Fall design"
+                };
+                designItems.Add(item);
+                menu.Items.Add(item);
             }
             miOpacity = new ToolStripMenuItem("&Opacity");
             foreach (int pct in OpacityLevels)
@@ -253,7 +261,6 @@ namespace QwenPad
                 new ToolStripMenuItem("✦ &Ask Qwen...", null, delegate { mgr.Ask(this); }) { ShortcutKeyDisplayString = "Ctrl+K" },
                 new ToolStripMenuItem("Add &Image or GIF...", null, delegate { ChooseImage(); }),
                 new ToolStripMenuItem("✏ &Draw (pen, brush, eraser)", null, delegate { SetDrawMode(!drawMode); }),
-                miDesigns,
                 new ToolStripSeparator(), miTop, miOpacity, miLayer,
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("☰ Notes &List...", null, delegate { mgr.ShowList(this); }),
@@ -269,7 +276,7 @@ namespace QwenPad
                 miTop.Checked = TopMost;
                 for (int i = 0; i < ColorNames.Length; i++) ((ToolStripMenuItem)menu.Items[i]).Checked = i == ColorIndex;
                 foreach (ToolStripMenuItem o in miOpacity.DropDownItems) o.Checked = (int)o.Tag == OpacityPercent;
-                foreach (ToolStripMenuItem o in miDesigns.DropDownItems) o.Checked = (int)o.Tag == Design;
+                foreach (var o in designItems) o.Checked = (int)o.Tag == Design;
                 for (int i = 0; i < ColorNames.Length; i++) ((ToolStripMenuItem)menu.Items[i]).Checked = Design == 0 && i == ColorIndex;
             };
 
