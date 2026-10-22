@@ -51,7 +51,7 @@ namespace QwenPad
         readonly List<ToolStripItem> aiItems = new List<ToolStripItem>();
 
         ToolStripMenuItem miWordWrap, miStatusBar, miStop, miServer;
-        ToolStripMenuItem miNotes;
+        ToolStripMenuItem miNotes, miClickableImages;
         int notesStaticCount;
 
         // Document state
@@ -94,6 +94,7 @@ namespace QwenPad
             titleLlm = new LlmClient(settings);
             notes = new NoteManager(InsertFromNote, AskInNote, AutoTitleNote);
             Theme.SetMode(settings.Theme);
+            StickyNote.ClickableImages = settings.ClickableImages;
             Text = AppName;
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
             Size = new Size(900, 640);
@@ -266,6 +267,13 @@ namespace QwenPad
                 Item("📌 &Pin All Notes on Top", Keys.None, delegate { notes.ShowAll(); notes.PinAll(true); }),
                 Item("&Unpin All Notes", Keys.None, delegate { notes.PinAll(false); }),
                 Item("☰ Notes &List...", Keys.Control | Keys.Shift | Keys.L, delegate { if (NotesAvailable()) notes.ShowList(this); }),
+                (miClickableImages = Item("&Clickable Images", Keys.None, delegate
+                {
+                    settings.ClickableImages = StickyNote.ClickableImages = !settings.ClickableImages;
+                    settings.Save();
+                    notes.ApplyImageMode();
+                    ShowNote(settings.ClickableImages ? "Clicking a note's image now opens it." : "Images no longer open on click (right-click > Open still works).");
+                })),
                 new ToolStripSeparator()
             });
             notesStaticCount = miNotes.DropDownItems.Count;
@@ -1262,6 +1270,8 @@ namespace QwenPad
             items[5].Enabled = available && notes.CountVisible() > 0;
             items[6].Enabled = available && notes.Notes.Count > 0 && notes.CountPinned() < notes.Notes.Count;
             items[7].Enabled = available && notes.CountPinned() > 0;
+            miClickableImages.Checked = settings.ClickableImages;
+            miClickableImages.ToolTipText = "When on, clicking an image in a sticky note opens it. Right-click > Open always works.";
             if (!available)
             {
                 items.Add(new ToolStripMenuItem("Notes are open in another QwenPad window") { Enabled = false });

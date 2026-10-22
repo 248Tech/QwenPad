@@ -28,6 +28,7 @@ namespace QwenPad
         public bool WordWrap = true;
         public bool StatusBar = true;
         public string Theme = "system";   // system | light | dark
+        public bool ClickableImages;      // off by default: left-clicking a note's image doesn't open it
         public Rectangle Bounds = Rectangle.Empty;
         public bool Maximized;
 
@@ -87,6 +88,7 @@ namespace QwenPad
                         case "WordWrap": s.WordWrap = v == "1"; break;
                         case "StatusBar": s.StatusBar = v == "1"; break;
                         case "Theme": s.Theme = v.ToLowerInvariant(); break;
+                        case "ClickableImages": s.ClickableImages = v == "1"; break;
                         case "Maximized": s.Maximized = v == "1"; break;
                         case "Window":
                             string[] p = v.Split(',');
@@ -121,6 +123,7 @@ namespace QwenPad
             sb.AppendLine("WordWrap=" + (WordWrap ? "1" : "0"));
             sb.AppendLine("StatusBar=" + (StatusBar ? "1" : "0"));
             sb.AppendLine("Theme=" + Theme);
+            sb.AppendLine("ClickableImages=" + (ClickableImages ? "1" : "0"));
             sb.AppendLine("Maximized=" + (Maximized ? "1" : "0"));
             if (!Bounds.IsEmpty)
                 sb.AppendLine(string.Format(Inv, "Window={0},{1},{2},{3}", Bounds.X, Bounds.Y, Bounds.Width, Bounds.Height));

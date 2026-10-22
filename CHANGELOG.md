@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.7.0] - 2026-10-22
+
+### Added
+- **🍂 Fall designs for sticky notes** (⋯ > Fall Designs): *Spooky Night* (a black frame of stars and pumpkins, cream scalloped paper, a witch-hat ghost), *Pumpkin Patch* (orange confetti, a cobweb and a spider, a jack-o'-lantern watermark), *Moonlit Ghost* (a starry night where you write on a big friendly ghost) and *Harvest Moon* (teal paper with coral ruled lines and a howling wolf under a full moon). They're drawn in code, so they're sharp at any size, and ruled lines follow your text. The Notes List shows each note's design.
+- **Resizable images:** drag an image's corner to resize it (proportions kept), or right-click > Size > Small / Medium / Large / Full Width. Small images sit side by side, and sizes are saved.
+- **Notes > Clickable Images** setting, **off by default**, so a stray click doesn't open an image. Right-click > Open always works.
+
+### Changed
+- Note text uses Windows' RichEdit 5.0 with a transparent background, so designs show behind the text.
+- A note that fails to load is logged to logs\notes-errors.log instead of being skipped silently.
 ## [1.6.0] - 2026-10-22
 
 ### Added

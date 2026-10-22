@@ -33,7 +33,7 @@ namespace QwenPad
         public SketchCanvas()
         {
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint |
-                     ControlStyles.ResizeRedraw | ControlStyles.Selectable, true);
+                     ControlStyles.ResizeRedraw | ControlStyles.Selectable | ControlStyles.SupportsTransparentBackColor, true);
             Cursor = Cursors.Cross;
         }
 
@@ -229,7 +229,7 @@ namespace QwenPad
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            e.Graphics.Clear(BackColor);
+            if (BackColor.A == 255) e.Graphics.Clear(BackColor);   // transparent: the note's design was painted underneath
             e.Graphics.DrawImage(ink, 0, 0);
             DrawStroke(e.Graphics);
             if (Drawing)

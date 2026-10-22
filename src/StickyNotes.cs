@@ -40,13 +40,22 @@ namespace QwenPad
         readonly Panel header = new EdgePanel();
         readonly Label lblStatus = new EdgeLabel();
         readonly Panel titleRow = new EdgePanel();
-        readonly TextBox txtTitle = new EdgeTextBox();
+        readonly EdgeTitleBox txtTitle = new EdgeTitleBox();
         readonly Label lblDate = new EdgeLabel();
         readonly ToolTip dateTip = new ToolTip();
         readonly Panel formatBar = new EdgePanel();
         readonly FlowLayoutPanel gallery = new EdgeFlowPanel();
         readonly List<string> images = new List<string>();
         readonly Dictionary<PictureBox, Stream> imageStreams = new Dictionary<PictureBox, Stream>();
+        readonly Dictionary<string, int> imageWidths = new Dictionary<string, int>();   // user-chosen widths (0/absent = fit)
+
+        /// <summary>When false (the default), left-clicking an image doesn't open it; right-click > Open still does.</summary>
+        internal static bool ClickableImages;
+
+        // Fall designs (see NoteDesigns): 0 = plain color.
+        internal int Design { get; private set; }
+        Bitmap designCache;
+        string designKey;
         readonly Dictionary<int, Label> formatButtons = new Dictionary<int, Label>();
         readonly System.Windows.Forms.Timer titleTimer = new System.Windows.Forms.Timer { Interval = 2500 };
         readonly System.Windows.Forms.Timer statusTimer = new System.Windows.Forms.Timer { Interval = 1500 };
@@ -133,7 +142,10 @@ namespace QwenPad
             {
                 if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Down) { e.Handled = e.SuppressKeyPress = true; Body.Focus(); Body.Select(0, 0); }
             };
-            txtTitle.HandleCreated += delegate { SendMessage(txtTitle.Handle, EM_SETCUEBANNER, (IntPtr)1, "Title"); };
+            txtTitle.Multiline = false;
+            txtTitle.DetectUrls = false;
+            txtTitle.ScrollBars = RichTextBoxScrollBars.None;
+            txtTitle.Placeholder = "Title";
             lblDate.Dock = DockStyle.Right;
             lblDate.AutoSize = true;
             lblDate.Font = new Font(HandFont, BodySize - 2f);
@@ -182,8 +194,8 @@ namespace QwenPad
 
             // Image strip (animated GIFs play) between the text and the format bar.
             gallery.Dock = DockStyle.Bottom;
-            gallery.FlowDirection = FlowDirection.TopDown;
-            gallery.WrapContents = false;
+            gallery.FlowDirection = FlowDirection.LeftToRight;
+            gallery.WrapContents = true;
             gallery.AutoScroll = true;
             gallery.Visible = false;
             gallery.Padding = new Padding(0, 2, 0, 0);
@@ -202,14 +214,25 @@ namespace QwenPad
             Controls.Add(formatBar);
             Controls.Add(drawBar);
             Controls.Add(titleRow);
+            // The design's ruled lines follow the text area, so repaint when it moves or resizes.
+            EventHandler relayout = delegate { if (Design > 0) Invalidate(true); };
+            Body.Resize += relayout;
+            Body.Move += relayout;
             Controls.Add(header);
 
             for (int i = 0; i < ColorNames.Length; i++)
             {
                 int c = i;
-                menu.Items.Add(new ToolStripMenuItem(ColorNames[i], Swatch(i), delegate { SetColor(c); mgr.MarkDirty(this); }));
+                menu.Items.Add(new ToolStripMenuItem(ColorNames[i], Swatch(i), delegate { SetDesign(0); SetColor(c); mgr.MarkDirty(this); }));
             }
             miTop = new ToolStripMenuItem("📌 &Pin on Top of All Windows", null, delegate { SetPinned(!TopMost); }) { ShortcutKeyDisplayString = "Ctrl+P" };
+            var miDesigns = new ToolStripMenuItem("🍂 Fall &Designs");
+            for (int d = 0; d < NoteDesigns.Count; d++)
+            {
+                int dd = d;
+                miDesigns.DropDownItems.Add(new ToolStripMenuItem(NoteDesigns.Names[d], d == 0 ? Swatch(ColorIndex) : NoteDesigns.Thumbnail(d, 16, 16),
+                    delegate { SetDesign(dd); }) { Tag = d });
+            }
             miOpacity = new ToolStripMenuItem("&Opacity");
             foreach (int pct in OpacityLevels)
             {
@@ -230,6 +253,7 @@ namespace QwenPad
                 new ToolStripMenuItem("✦ &Ask Qwen...", null, delegate { mgr.Ask(this); }) { ShortcutKeyDisplayString = "Ctrl+K" },
                 new ToolStripMenuItem("Add &Image or GIF...", null, delegate { ChooseImage(); }),
                 new ToolStripMenuItem("✏ &Draw (pen, brush, eraser)", null, delegate { SetDrawMode(!drawMode); }),
+                miDesigns,
                 new ToolStripSeparator(), miTop, miOpacity, miLayer,
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("☰ Notes &List...", null, delegate { mgr.ShowList(this); }),
@@ -245,6 +269,8 @@ namespace QwenPad
                 miTop.Checked = TopMost;
                 for (int i = 0; i < ColorNames.Length; i++) ((ToolStripMenuItem)menu.Items[i]).Checked = i == ColorIndex;
                 foreach (ToolStripMenuItem o in miOpacity.DropDownItems) o.Checked = (int)o.Tag == OpacityPercent;
+                foreach (ToolStripMenuItem o in miDesigns.DropDownItems) o.Checked = (int)o.Tag == Design;
+                for (int i = 0; i < ColorNames.Length; i++) ((ToolStripMenuItem)menu.Items[i]).Checked = Design == 0 && i == ColorIndex;
             };
 
             Move += delegate { mgr.MarkDirty(this); };
@@ -323,7 +349,7 @@ namespace QwenPad
         {
             if (btnPin == null) return;
             btnPin.BackColor = !TopMost ? Color.Transparent
-                : Theme.Dark ? Color.FromArgb(70, 255, 255, 255) : Color.FromArgb(55, 0, 0, 0);
+                : HeaderIsDark ? Color.FromArgb(70, 255, 255, 255) : Color.FromArgb(55, 0, 0, 0);
             headerTip.SetToolTip(btnPin, TopMost ? "Pinned on top of all windows. Click to unpin (Ctrl+P)"
                                                  : "Pin on top of all windows (Ctrl+P)");
         }
@@ -469,7 +495,7 @@ namespace QwenPad
             sb.Append("#title ").Append(TitleText).Append("\r\n");
             sb.Append("#created ").Append(CreatedOn.ToString("s", CultureInfo.InvariantCulture)).Append("\r\n");
             sb.Append("#modified ").Append(ModifiedOn.ToString("s", CultureInfo.InvariantCulture)).Append("\r\n");
-            if (images.Count > 0) sb.Append("#images ").Append(string.Join("|", images.ToArray())).Append("\r\n");
+            if (images.Count > 0) sb.Append("#images ").Append(ImageList()).Append("\r\n");
             sb.Append("#format rtf\r\n");
             return sb.ToString();
         }
@@ -544,13 +570,67 @@ namespace QwenPad
             foreach (var b in formatButtons.Values) b.ForeColor = dark ? Color.FromArgb(200, 200, 200) : Color.FromArgb(70, 70, 70);
             sketch.BackColor = drawBar.BackColor = Body.BackColor;
             sketch.ForeColor = TextColor(dark);
+            txtTitle.PlaceholderColor = lblDate.ForeColor;
+            Padding = new Padding(Grip, 0, Grip, GripBottom);
+
+            var st = NoteDesigns.StyleOf(Design);
+            if (st != null)
+            {
+                // Designs paint the whole window; the panels become see-through and take the design's colors.
+                foreach (Control c in new Control[] { header, titleRow, lblDate, lblStatus, formatBar, drawBar, gallery, sketch })
+                    c.BackColor = Color.Transparent;
+                Body.ForeColor = txtTitle.ForeColor = sketch.ForeColor = st.Text;
+                lblDate.ForeColor = lblStatus.ForeColor = txtTitle.PlaceholderColor = st.Muted;
+                foreach (var b in headerButtons) b.ForeColor = st.HeaderFore;
+                foreach (var b in formatButtons.Values) b.ForeColor = st.Text;
+                Padding = new Padding(Math.Max(Grip, st.SideInset), 0, Math.Max(Grip, st.SideInset), Math.Max(GripBottom, st.BottomInset));
+            }
             ApplyInkColor();
             UpdateDrawButtons();
             sketch.Invalidate();
             RecolorText();
             UpdatePinButton();
             UpdateFormatButtons();
-            Invalidate();
+            designKey = null;
+            Invalidate(true);
+        }
+
+        /// <summary>Applies one of the fall designs (0 = plain note color).</summary>
+        internal void SetDesign(int design)
+        {
+            Design = Math.Max(0, Math.Min(NoteDesigns.Count - 1, design));
+            if (designCache != null) { designCache.Dispose(); designCache = null; }
+            SetColor(ColorIndex);
+            LayoutGallery();
+            AutoFit();
+            mgr.MarkDirty(this);
+        }
+
+        /// <summary>True when the header sits on a dark part of the window (dark mode or a dark design frame).</summary>
+        bool HeaderIsDark { get { return Design == 1 || Design == 3 || (Design == 0 && Theme.Dark); } }
+
+        Color HoverColor(bool dark) { return dark ? Color.FromArgb(55, 255, 255, 255) : Color.FromArgb(40, 0, 0, 0); }
+
+        /// <summary>True when the writing area is dark (dark mode with no design; every design has light paper).</summary>
+        bool PaperIsDark { get { return Design == 0 && Theme.Dark; } }
+
+        /// <summary>Default ink: the design's text color, else black / white for light / dark mode.</summary>
+        Color InkDefault { get { var st = NoteDesigns.StyleOf(Design); return st != null ? st.Text : TextColor(Theme.Dark); } }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            if (Design == 0) { base.OnPaintBackground(e); return; }
+            // Re-render only when the size, text area or line spacing changes (ruled lines follow the text).
+            var body = Body.Bounds;
+            int lineH = TextRenderer.MeasureText("Ag", Body.Font).Height;
+            string key = Design + "|" + ClientSize + "|" + body + "|" + lineH;
+            if (designCache == null || key != designKey)
+            {
+                if (designCache != null) designCache.Dispose();
+                designCache = NoteDesigns.Render(Design, ClientSize, header.Height, body, lineH);
+                designKey = key;
+            }
+            e.Graphics.DrawImage(designCache, 0, 0);
         }
 
         /// <summary>Makes all body text the theme's text color (formatting other than color is kept).</summary>
@@ -587,7 +667,7 @@ namespace QwenPad
                 Font = font, Cursor = Cursors.Hand
             };
             headerTip.SetToolTip(b, tip);
-            b.MouseEnter += delegate { b.BackColor = Theme.Dark ? Color.FromArgb(45, 255, 255, 255) : Color.FromArgb(40, 0, 0, 0); };
+            b.MouseEnter += delegate { b.BackColor = HoverColor(PaperIsDark); };
             b.MouseLeave += delegate { UpdateFormatButtons(); };
             b.Click += (s, e) => { onClick(s, e); Body.Focus(); };
             formatButtons[key] = b;
@@ -626,7 +706,7 @@ namespace QwenPad
         {
             if (!Body.IsHandleCreated) return;
             var cf = GetCharFormat();
-            Color on = Theme.Dark ? Color.FromArgb(70, 255, 255, 255) : Color.FromArgb(50, 0, 0, 0);
+            Color on = PaperIsDark ? Color.FromArgb(70, 255, 255, 255) : Color.FromArgb(50, 0, 0, 0);
             foreach (var kv in formatButtons)
             {
                 bool active = kv.Key > 0 ? (cf.dwMask & kv.Key) != 0 && (cf.dwEffects & kv.Key) != 0
@@ -649,7 +729,7 @@ namespace QwenPad
             {
                 var b = new EdgeLabel { Dock = DockStyle.Left, Width = w, Cursor = Cursors.Hand, ImageAlign = ContentAlignment.MiddleCenter, TextAlign = ContentAlignment.MiddleCenter };
                 headerTip.SetToolTip(b, tip);
-                b.MouseEnter += delegate { b.BackColor = Theme.Dark ? Color.FromArgb(45, 255, 255, 255) : Color.FromArgb(40, 0, 0, 0); };
+                b.MouseEnter += delegate { b.BackColor = HoverColor(PaperIsDark); };
                 b.MouseLeave += delegate { UpdateDrawButtons(); };
                 b.Click += click;
                 return b;
@@ -714,14 +794,15 @@ namespace QwenPad
 
         void ApplyInkColor()
         {
-            sketch.InkColor = inkChoice == 0 ? TextColor(Theme.Dark) : InkColors[inkChoice];
+            sketch.InkColor = inkChoice == 0 ? InkDefault : InkColors[inkChoice];
         }
 
         void UpdateDrawButtons()
         {
             if (sizeButton == null) return;
-            bool dark = Theme.Dark;
-            Color fg = dark ? Color.FromArgb(215, 215, 215) : Color.FromArgb(60, 60, 60);
+            bool dark = PaperIsDark;
+            var st = NoteDesigns.StyleOf(Design);
+            Color fg = st != null ? st.Text : dark ? Color.FromArgb(215, 215, 215) : Color.FromArgb(60, 60, 60);
             Color on = dark ? Color.FromArgb(70, 255, 255, 255) : Color.FromArgb(50, 0, 0, 0);
             foreach (var kv in toolButtons)
             {
@@ -733,7 +814,7 @@ namespace QwenPad
             {
                 var b = colorButtons[i];
                 if (b.Image != null) b.Image.Dispose();
-                b.Image = SketchIcons.Swatch(i == 0 ? TextColor(dark) : InkColors[i], Color.FromArgb(120, fg));
+                b.Image = SketchIcons.Swatch(i == 0 ? InkDefault : InkColors[i], Color.FromArgb(120, fg));
                 b.BackColor = inkChoice == i ? on : Color.Transparent;
             }
             if (sizeButton.Image != null) sizeButton.Image.Dispose();
@@ -822,10 +903,38 @@ namespace QwenPad
             catch { }
         }
 
-        internal void LoadImages(IEnumerable<string> names)
+        /// <summary>Loads "name" or "name:width" entries from the note file.</summary>
+        internal void LoadImages(IEnumerable<string> entries)
         {
-            foreach (string n in names)
+            foreach (string entry in entries)
+            {
+                string n = entry;
+                int colon = entry.LastIndexOf(':'), w;
+                if (colon > 0 && int.TryParse(entry.Substring(colon + 1), out w)) { n = entry.Substring(0, colon); imageWidths[n] = w; }
                 if (n.Length > 0 && File.Exists(Path.Combine(ImageDir, n)) && !images.Contains(n)) { images.Add(n); AddThumb(n); }
+            }
+        }
+
+        /// <summary>"#images" value: each file name, with ":width" when the user resized it.</summary>
+        string ImageList()
+        {
+            var parts = new List<string>();
+            foreach (string n in images)
+            {
+                int w;
+                parts.Add(imageWidths.TryGetValue(n, out w) && w > 0 ? n + ":" + w : n);
+            }
+            return string.Join("|", parts.ToArray());
+        }
+
+        /// <summary>Applies the Clickable Images setting (cursor and tooltip) to every picture in this note.</summary>
+        internal void UpdateImageMode()
+        {
+            foreach (Control c in gallery.Controls)
+            {
+                c.Cursor = ClickableImages ? Cursors.Hand : Cursors.Default;
+                headerTip.SetToolTip(c, (ClickableImages ? "Click to open · " : "") + "drag the corner to resize · right-click for options");
+            }
         }
 
         void AddThumb(string name)
@@ -840,19 +949,93 @@ namespace QwenPad
                 img = Image.FromStream(stream);
             }
             catch { return; }
-            var pb = new EdgePictureBox { Image = img, SizeMode = PictureBoxSizeMode.Zoom, Tag = name, Cursor = Cursors.Hand, Margin = new Padding(0, 0, 0, 4) };
+            var pb = new EdgePictureBox { Image = img, SizeMode = PictureBoxSizeMode.Zoom, Tag = name, Margin = new Padding(0, 0, 4, 4), BackColor = Color.Transparent };
             imageStreams[pb] = stream;
-            headerTip.SetToolTip(pb, "Click to open · right-click for options");
-            pb.Click += (s, e) => { if (((MouseEventArgs)e).Button == MouseButtons.Left) OpenImage(pb); };
+
+            // Drag the bottom-right corner to resize (aspect ratio kept); click opens only when Clickable Images is on.
+            bool resizing = false, resized = false, hover = false;
+            int startX = 0, startW = 0;
+            Func<Point, bool> inGrip = p => p.X >= pb.Width - 16 && p.Y >= pb.Height - 16;
+            pb.MouseEnter += delegate { hover = true; pb.Invalidate(); };
+            pb.MouseLeave += delegate { hover = false; pb.Invalidate(); };
+            pb.MouseDown += (s, e) =>
+            {
+                resized = false;
+                if (e.Button != MouseButtons.Left || !inGrip(e.Location)) return;
+                resizing = true;
+                startX = e.X;          // the picture's left edge stays put, so its own coordinates work
+                startW = pb.Width;
+                pb.Capture = true;
+            };
+            pb.MouseMove += (s, e) =>
+            {
+                if (resizing)
+                {
+                    int w = Math.Max(40, Math.Min(MaxImageWidth, startW + e.X - startX));
+                    pb.Size = new Size(w, ImageHeightFor(pb, w));
+                    resized = true;
+                    return;
+                }
+                pb.Cursor = inGrip(e.Location) ? Cursors.SizeNWSE : ClickableImages ? Cursors.Hand : Cursors.Default;
+            };
+            pb.MouseUp += (s, e) =>
+            {
+                if (!resizing) return;
+                resizing = false;
+                pb.Capture = false;
+                if (!resized) return;
+                SetImageWidth(pb, pb.Width >= MaxImageWidth - 2 ? 0 : pb.Width);
+            };
+            pb.Click += (s, e) =>
+            {
+                if (resized || ((MouseEventArgs)e).Button != MouseButtons.Left) return;
+                if (ClickableImages) OpenImage(pb);
+            };
+            pb.Paint += (s, e) =>
+            {
+                if (!hover) return;
+                // Resize grip in the picture's corner.
+                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                using (var bg = new SolidBrush(Color.FromArgb(150, 255, 255, 255))) e.Graphics.FillPolygon(bg, new[] { new Point(pb.Width, pb.Height - 16), new Point(pb.Width, pb.Height), new Point(pb.Width - 16, pb.Height) });
+                using (var pen = new Pen(Color.FromArgb(160, 0, 0, 0), 1.2f))
+                    for (int k = 1; k <= 3; k++) e.Graphics.DrawLine(pen, pb.Width - 2, pb.Height - 2 - k * 4, pb.Width - 2 - k * 4, pb.Height - 2);
+            };
+
             var cm = new ContextMenuStrip();
             cm.Items.Add("&Open", null, delegate { OpenImage(pb); });
             cm.Items.Add("&Copy", null, delegate { try { Clipboard.SetImage(pb.Image); } catch { } });
+            var size = new ToolStripMenuItem("&Size");
+            size.DropDownItems.Add("&Small", null, delegate { SetImageWidth(pb, MaxImageWidth / 3); });
+            size.DropDownItems.Add("&Medium", null, delegate { SetImageWidth(pb, MaxImageWidth / 2); });
+            size.DropDownItems.Add("&Large", null, delegate { SetImageWidth(pb, MaxImageWidth * 3 / 4); });
+            size.DropDownItems.Add("&Full Width", null, delegate { SetImageWidth(pb, 0); });
+            cm.Items.Add(size);
+            cm.Items.Add(new ToolStripSeparator());
             cm.Items.Add("&Remove from Note", null, delegate { RemoveImage(pb); });
             pb.ContextMenuStrip = cm;
             gallery.Controls.Add(pb);
             gallery.Visible = true;
+            UpdateImageMode();
             LayoutGallery();
             AutoFit();
+        }
+
+        int MaxImageWidth { get { return Math.Max(40, ClientSize.Width - Padding.Horizontal - SystemInformation.VerticalScrollBarWidth - 6); } }
+
+        static int ImageHeightFor(PictureBox pb, int width)
+        {
+            if (pb.Image == null || pb.Image.Width == 0) return 60;
+            return Math.Max(24, (int)(width * (pb.Image.Height / (double)pb.Image.Width)));
+        }
+
+        /// <summary>Sets a picture's width (0 = fit the note) and saves it.</summary>
+        void SetImageWidth(PictureBox pb, int width)
+        {
+            string name = (string)pb.Tag;
+            if (width <= 0) imageWidths.Remove(name); else imageWidths[name] = width;
+            LayoutGallery();
+            AutoFit();
+            Edited(false);
         }
 
         void OpenImage(PictureBox pb)
@@ -869,6 +1052,7 @@ namespace QwenPad
             if (imageStreams.TryGetValue(pb, out s)) { s.Dispose(); imageStreams.Remove(pb); }
             pb.Dispose();
             images.Remove(name);
+            imageWidths.Remove(name);
             try { File.Delete(Path.Combine(ImageDir, name)); } catch { }
             gallery.Visible = images.Count > 0;
             LayoutGallery();
@@ -876,20 +1060,23 @@ namespace QwenPad
             Edited(false);
         }
 
-        /// <summary>Sizes each picture to the note's width (keeping its aspect ratio) and the strip to fit, within limits.</summary>
+        /// <summary>
+        /// Sizes each picture: its saved width (capped to the note) or the full width, keeping the aspect ratio.
+        /// Smaller pictures flow side by side; the strip grows to fit, up to a limit, then scrolls.
+        /// </summary>
         void LayoutGallery()
         {
             if (gallery.Controls.Count == 0) { gallery.Height = 0; return; }
-            int width = Math.Max(40, ClientSize.Width - Padding.Horizontal - (gallery.VerticalScroll.Visible ? SystemInformation.VerticalScrollBarWidth : 0) - 2);
-            int total = gallery.Padding.Vertical;
+            int full = MaxImageWidth;
             foreach (Control c in gallery.Controls)
             {
                 var pb = (PictureBox)c;
-                int h = pb.Image == null ? 60 : Math.Max(40, Math.Min(240, (int)(width * (pb.Image.Height / (double)pb.Image.Width))));
-                pb.Size = new Size(width, h);
-                total += h + pb.Margin.Vertical;
+                int w;
+                w = imageWidths.TryGetValue((string)pb.Tag, out w) && w > 0 ? Math.Min(w, full) : full;
+                pb.Size = new Size(w, ImageHeightFor(pb, w));
             }
-            gallery.Height = Math.Min(total, 260);
+            int needed = gallery.GetPreferredSize(new Size(full + SystemInformation.VerticalScrollBarWidth, 0)).Height;
+            gallery.Height = Math.Min(needed, 420);
         }
 
         internal void DeleteFiles()
@@ -976,9 +1163,9 @@ namespace QwenPad
         internal string Meta()
         {
             var b = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
-            return string.Format(CultureInfo.InvariantCulture, "#note x={0} y={1} w={2} h={3} bh={4} color={5} top={6} visible={7} op={8} at={9} sk={10} sh={11}",
+            return string.Format(CultureInfo.InvariantCulture, "#note x={0} y={1} w={2} h={3} bh={4} color={5} top={6} visible={7} op={8} at={9} sk={10} sh={11} design={12}",
                 b.X, b.Y, b.Width, b.Height, baseHeight > 0 ? baseHeight : b.Height, ColorIndex, TopMost ? 1 : 0,
-                WantsVisible ? 1 : 0, OpacityPercent, AutoTitleTried ? 1 : 0, sketchOn && sketch.HasInk ? 1 : 0, sketchHeight);
+                WantsVisible ? 1 : 0, OpacityPercent, AutoTitleTried ? 1 : 0, sketchOn && sketch.HasInk ? 1 : 0, sketchHeight, Design);
         }
 
         internal void ApplyMeta(string line)
@@ -1001,6 +1188,8 @@ namespace QwenPad
             if (v.TryGetValue("visible", out vis)) WantsVisible = vis == 1;
             if (v.TryGetValue("op", out op)) SetOpacity(op);
             if (v.TryGetValue("at", out at)) AutoTitleTried = at == 1;
+            int design;
+            if (v.TryGetValue("design", out design) && design > 0) SetDesign(design);
             if (!OnScreen(Bounds)) Location = new Point(Screen.PrimaryScreen.WorkingArea.Right - Width - 40, Screen.PrimaryScreen.WorkingArea.Top + 40);
         }
 
@@ -1043,7 +1232,7 @@ namespace QwenPad
             };
             headerTip.SetToolTip(b, tip);
             headerButtons.Add(b);
-            b.MouseEnter += delegate { b.BackColor = Theme.Dark ? Color.FromArgb(45, 255, 255, 255) : Color.FromArgb(40, 0, 0, 0); };
+            b.MouseEnter += delegate { b.BackColor = HoverColor(HeaderIsDark); };
             b.MouseLeave += delegate { b.BackColor = Color.Transparent; UpdatePinButton(); };
             b.Click += onClick;
             return b;
@@ -1307,9 +1496,58 @@ namespace QwenPad
         protected override void WndProc(ref Message m) { if (!StickyNote.PassNoteMessage(this, ref m)) base.WndProc(ref m); }
     }
 
-    sealed class EdgeRichTextBox : RichTextBox
+    /// <summary>
+    /// A RichTextBox on RichEdit 5.0 (msftedit.dll) with a transparent background, so a note's design shows through
+    /// behind the text. Falls back to the standard control if msftedit isn't available.
+    /// </summary>
+    class TransparentRichTextBox : RichTextBox
+    {
+        static int msftedit;   // 0 unknown, 1 loaded, -1 unavailable
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                if (msftedit == 0) msftedit = LoadLibrary("msftedit.dll") != IntPtr.Zero ? 1 : -1;
+                var cp = base.CreateParams;
+                if (msftedit == 1)
+                {
+                    cp.ClassName = "RICHEDIT50W";
+                    cp.ExStyle |= 0x20;   // WS_EX_TRANSPARENT
+                }
+                return cp;
+            }
+        }
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern IntPtr LoadLibrary(string file);
+    }
+
+    sealed class EdgeRichTextBox : TransparentRichTextBox
     {
         protected override void WndProc(ref Message m) { if (!StickyNote.PassNoteMessage(this, ref m)) base.WndProc(ref m); }
+    }
+
+    /// <summary>The note's single-line title: transparent rich edit with a "Title" placeholder (RichEdit has no cue banner).</summary>
+    sealed class EdgeTitleBox : TransparentRichTextBox
+    {
+        public string Placeholder = "";
+        public Color PlaceholderColor = Color.Gray;
+
+        public EdgeTitleBox()
+        {
+            GotFocus += delegate { Invalidate(); };
+            LostFocus += delegate { Invalidate(); };
+            TextChanged += delegate { Invalidate(); };
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (StickyNote.PassNoteMessage(this, ref m)) return;
+            base.WndProc(ref m);
+            if (m.Msg == 0x000F && TextLength == 0 && !Focused && Placeholder.Length > 0)   // WM_PAINT
+                using (var g = CreateGraphics())
+                    TextRenderer.DrawText(g, Placeholder, Font, new Point(1, 0), PlaceholderColor, TextFormatFlags.NoPadding);
+        }
     }
 
     sealed class EdgePanel : Panel
@@ -1431,7 +1669,17 @@ namespace QwenPad
                         notes.Add(note);
                         if (note.WantsVisible) note.Show();
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        // Skip a damaged note, but leave a trace so it can be diagnosed.
+                        try
+                        {
+                            string log = Path.Combine(Settings.AppDir, "logs");
+                            Directory.CreateDirectory(log);
+                            File.AppendAllText(Path.Combine(log, "notes-errors.log"), DateTime.Now.ToString("s") + " " + Path.GetFileName(path) + ": " + ex + "\r\n");
+                        }
+                        catch { }
+                    }
                 }
             }
             finally { loading = false; }
@@ -1531,6 +1779,8 @@ namespace QwenPad
             if (listForm == null || listForm.IsDisposed) listForm = new NotesListForm(this);
             listForm.ShowNear(near);
         }
+
+        public void ApplyImageMode() { foreach (var n in notes) n.UpdateImageMode(); }
 
         public void ApplyTheme()
         {

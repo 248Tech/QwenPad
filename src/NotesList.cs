@@ -196,6 +196,13 @@ namespace QwenPad
         readonly NotesListForm owner;
         internal bool Selected;
         bool hover;
+        Bitmap designThumb;
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && designThumb != null) designThumb.Dispose();
+            base.Dispose(disposing);
+        }
 
         public NoteCard(StickyNote note, NotesListForm owner)
         {
@@ -224,13 +231,29 @@ namespace QwenPad
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
             bool dark = Theme.Dark;
             var r = new Rectangle(0, 0, Width - 1, Height - 1);
+            var style = NoteDesigns.StyleOf(Note.Design);
             using (var path = Rounded(r, 6))
             {
-                using (var fill = new SolidBrush(StickyNote.BodyColor(Note.ColorIndex, dark))) g.FillPath(fill, path);
-                // Header strip in the note's accent color.
                 var old = g.Clip;
                 g.SetClip(path);
-                using (var head = new SolidBrush(StickyNote.HeadColor(Note.ColorIndex, dark))) g.FillRectangle(head, 0, 0, Width, 6);
+                if (style != null)
+                {
+                    // Show the note's fall design (rendered once per card size).
+                    if (designThumb == null || designThumb.Size != Size)
+                    {
+                        if (designThumb != null) designThumb.Dispose();
+                        designThumb = NoteDesigns.Thumbnail(Note.Design, Width, Height);
+                    }
+                    g.DrawImage(designThumb, 0, 0);
+                    // A light wash keeps the design recognizable while the card's text stays readable.
+                    using (var veil = new SolidBrush(Color.FromArgb(150, 255, 255, 255))) g.FillRectangle(veil, 0, 0, Width, Height);
+                }
+                else
+                {
+                    using (var fill = new SolidBrush(StickyNote.BodyColor(Note.ColorIndex, dark))) g.FillPath(fill, path);
+                    // Header strip in the note's accent color.
+                    using (var head = new SolidBrush(StickyNote.HeadColor(Note.ColorIndex, dark))) g.FillRectangle(head, 0, 0, Width, 6);
+                }
                 g.Clip = old;
                 Color border = Selected ? (dark ? Color.FromArgb(155, 123, 255) : Color.FromArgb(124, 77, 255))
                              : hover ? Color.FromArgb(dark ? 110 : 90, dark ? 255 : 0, dark ? 255 : 0, dark ? 255 : 0)
@@ -238,7 +261,8 @@ namespace QwenPad
                 using (var pen = new Pen(border, Selected ? 2.5f : 1f)) g.DrawPath(pen, path);
             }
 
-            Color text = StickyNote.TextColor(dark), muted = dark ? Color.FromArgb(160, 160, 160) : Color.FromArgb(105, 105, 105);
+            Color text = style != null ? style.Text : StickyNote.TextColor(dark);
+            Color muted = style != null ? style.Muted : dark ? Color.FromArgb(160, 160, 160) : Color.FromArgb(105, 105, 105);
             int pad = 10, y = 12;
             string date = Note.CreatedOn.Date == DateTime.Today ? Note.CreatedOn.ToShortTimeString()
                         : Note.CreatedOn.Year == DateTime.Today.Year ? Note.CreatedOn.ToString("MMM d") : Note.CreatedOn.ToString("MMM d, yyyy");
