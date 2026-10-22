@@ -73,6 +73,7 @@ With nothing selected, rewrite actions apply to the whole document. Every AI edi
 - Each note is its own window with a taskbar button grouped under QwenPad (minimize, restore, Alt+Tab).
 - Notes **auto-expand** to fit their text (scrollbar only when they reach the screen edge) and can be resized from any edge or the corner grip.
 - **Rich text** (bold, italic, underline, strikethrough, bullets) and **images / animated GIFs** in notes.
+- **✏ Free draw** with a pen, paint brush and eraser (five colors, three sizes, undo).
 - **Opacity**, **layers** (Bring to Front, Send to Back, or Ctrl+scroll), and a searchable **Notes List** palette.
 - Qwen **auto-titles** untitled notes, and **Qwen > Tasks From Email** turns a pasted email into task notes.
 - **📌 Pin** a note on top of all windows (pin button, Ctrl+P, or Notes > Pin All Notes on Top).

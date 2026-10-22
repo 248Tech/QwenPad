@@ -1370,7 +1370,8 @@ namespace QwenPad
             foreach (var task in tasks)
             {
                 string body = task[2];
-                if (task[1].Length > 0 && !task[1].Equals("none", StringComparison.OrdinalIgnoreCase)) body += (body.Length > 0 ? "\r\n" : "") + "📅 Due: " + task[1];
+                // Plain "Due:" (emoji don't render in the notes' handwritten font).
+                if (task[1].Length > 0 && !task[1].Equals("none", StringComparison.OrdinalIgnoreCase)) body += (body.Length > 0 ? "\r\n" : "") + "Due: " + task[1];
                 notes.New(body, Bounds, task[0], 4);   // blue, so tasks stand out from ordinary notes
             }
             ShowNote(string.Format("✦ Created {0} task note{1} from the email.", tasks.Count, tasks.Count == 1 ? "" : "s"));

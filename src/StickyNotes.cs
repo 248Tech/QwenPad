@@ -50,6 +50,19 @@ namespace QwenPad
         readonly Dictionary<int, Label> formatButtons = new Dictionary<int, Label>();
         readonly System.Windows.Forms.Timer titleTimer = new System.Windows.Forms.Timer { Interval = 2500 };
         readonly System.Windows.Forms.Timer statusTimer = new System.Windows.Forms.Timer { Interval = 1500 };
+        // Free-draw sketch area (pen / brush / eraser), saved as notes\<id>\sketch.png.
+        readonly EdgeSketchCanvas sketch = new EdgeSketchCanvas();
+        readonly Panel drawBar = new EdgePanel();
+        readonly Dictionary<SketchTool, Label> toolButtons = new Dictionary<SketchTool, Label>();
+        readonly List<Label> colorButtons = new List<Label>();
+        Label sizeButton;
+        bool drawMode;
+        int sketchHeight = 220, inkChoice;
+        static readonly Color[] InkColors = { Color.Empty, Color.FromArgb(220, 50, 47), Color.FromArgb(38, 110, 220), Color.FromArgb(40, 160, 70), Color.FromArgb(255, 200, 0) };
+        static readonly string[] InkNames = { "Ink (black / white in dark mode)", "Red", "Blue", "Green", "Highlighter yellow" };
+        bool sketchOn;   // own flag: a child's Visible reads false while the note itself is hidden
+        internal bool HasSketch { get { return sketchOn; } }
+
         internal DateTime CreatedOn { get; set; }
         internal DateTime ModifiedOn { get; set; }
         internal bool AutoTitleTried;
@@ -158,7 +171,8 @@ namespace QwenPad
             // Format bar along the bottom.
             formatBar.Dock = DockStyle.Bottom;
             formatBar.Height = Font.Height + 8;
-            // Docked Left in reverse, so they read B I U S • 🖼 from the left.
+            // Docked Left in reverse, so they read B I U S • 🖼 ✏ from the left.
+            formatBar.Controls.Add(FormatButton(-3, "✏", "Draw: pen, brush and eraser", new Font("Segoe UI Symbol", 10.5f), delegate { SetDrawMode(true); }));
             formatBar.Controls.Add(FormatButton(-2, "🖼", "Add an image or GIF", new Font("Segoe UI Symbol", 10f), delegate { ChooseImage(); }));
             formatBar.Controls.Add(FormatButton(-1, "•", "Bullets (Ctrl+Shift+L)", new Font("Segoe UI", 12f, FontStyle.Bold), delegate { ToggleBullets(); }));
             formatBar.Controls.Add(FormatButton(CFM_STRIKEOUT, "S", "Strikethrough (Ctrl+T)", new Font("Segoe UI", 10f, FontStyle.Strikeout), delegate { ToggleEffect(CFM_STRIKEOUT); }));
@@ -174,10 +188,19 @@ namespace QwenPad
             gallery.Visible = false;
             gallery.Padding = new Padding(0, 2, 0, 0);
 
+            // Sketch canvas (between the text and the images) and the drawing toolbar (replaces the format bar).
+            sketch.Dock = DockStyle.Bottom;
+            sketch.Height = sketchHeight;
+            sketch.Visible = false;
+            sketch.Changed += delegate { Edited(false); };
+            BuildDrawBar();
+
             // Docking order: later-added controls dock further out.
             Controls.Add(Body);
+            Controls.Add(sketch);
             Controls.Add(gallery);
             Controls.Add(formatBar);
+            Controls.Add(drawBar);
             Controls.Add(titleRow);
             Controls.Add(header);
 
@@ -206,6 +229,7 @@ namespace QwenPad
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("✦ &Ask Qwen...", null, delegate { mgr.Ask(this); }) { ShortcutKeyDisplayString = "Ctrl+K" },
                 new ToolStripMenuItem("Add &Image or GIF...", null, delegate { ChooseImage(); }),
+                new ToolStripMenuItem("✏ &Draw (pen, brush, eraser)", null, delegate { SetDrawMode(!drawMode); }),
                 new ToolStripSeparator(), miTop, miOpacity, miLayer,
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("☰ Notes &List...", null, delegate { mgr.ShowList(this); }),
@@ -518,6 +542,11 @@ namespace QwenPad
             lblStatus.ForeColor = dark ? Color.FromArgb(175, 175, 175) : Color.FromArgb(90, 90, 90);
             foreach (var b in headerButtons) b.ForeColor = dark ? Color.FromArgb(215, 215, 215) : Color.FromArgb(60, 60, 60);
             foreach (var b in formatButtons.Values) b.ForeColor = dark ? Color.FromArgb(200, 200, 200) : Color.FromArgb(70, 70, 70);
+            sketch.BackColor = drawBar.BackColor = Body.BackColor;
+            sketch.ForeColor = TextColor(dark);
+            ApplyInkColor();
+            UpdateDrawButtons();
+            sketch.Invalidate();
             RecolorText();
             UpdatePinButton();
             UpdateFormatButtons();
@@ -604,6 +633,137 @@ namespace QwenPad
                             : kv.Key == -1 && Body.SelectionBullet;
                 kv.Value.BackColor = active ? on : Color.Transparent;
             }
+        }
+
+        #endregion
+
+        #region Free draw
+
+        void BuildDrawBar()
+        {
+            drawBar.Dock = DockStyle.Bottom;
+            drawBar.Height = Font.Height + 8;
+            drawBar.Visible = false;
+            int w = drawBar.Height - 2;
+            Func<string, EventHandler, Label> button = (tip, click) =>
+            {
+                var b = new EdgeLabel { Dock = DockStyle.Left, Width = w, Cursor = Cursors.Hand, ImageAlign = ContentAlignment.MiddleCenter, TextAlign = ContentAlignment.MiddleCenter };
+                headerTip.SetToolTip(b, tip);
+                b.MouseEnter += delegate { b.BackColor = Theme.Dark ? Color.FromArgb(45, 255, 255, 255) : Color.FromArgb(40, 0, 0, 0); };
+                b.MouseLeave += delegate { UpdateDrawButtons(); };
+                b.Click += click;
+                return b;
+            };
+            // Right side (docked Right, added outermost-last): Done, Clear, Undo.
+            var done = button("Done drawing (Esc)", delegate { SetDrawMode(false); });
+            done.Dock = DockStyle.Right; done.Text = "✓"; done.Font = new Font("Segoe UI Symbol", 11f, FontStyle.Bold);
+            var clear = button("Clear the sketch", delegate { if (sketch.HasInk) sketch.Clear(); });
+            clear.Dock = DockStyle.Right; clear.Text = "🗑"; clear.Font = new Font("Segoe UI Symbol", 10f);
+            var undoB = button("Undo stroke (Ctrl+Z)", delegate { sketch.Undo(); });
+            undoB.Dock = DockStyle.Right; undoB.Text = "↶"; undoB.Font = new Font("Segoe UI Symbol", 11f);
+
+            // Left side, added in reverse so it reads: pen, brush, eraser, colors, size.
+            sizeButton = button("Size: small / medium / large", delegate { sketch.SizeLevel = (sketch.SizeLevel + 1) % 3; UpdateDrawButtons(); });
+            drawBar.Controls.Add(sizeButton);
+            for (int i = InkColors.Length - 1; i >= 0; i--)
+            {
+                int ci = i;
+                var c = button(InkNames[i], delegate { inkChoice = ci; ApplyInkColor(); UpdateDrawButtons(); });
+                c.Width = w - 6;
+                colorButtons.Insert(0, c);
+                drawBar.Controls.Add(c);
+            }
+            foreach (var t in new[] { SketchTool.Eraser, SketchTool.Brush, SketchTool.Pen })
+            {
+                var tool = t;
+                var b = button(t == SketchTool.Pen ? "Pen (P)" : t == SketchTool.Brush ? "Paint brush (B)" : "Eraser (E)",
+                    delegate { sketch.Tool = tool; UpdateDrawButtons(); });
+                toolButtons[t] = b;
+                drawBar.Controls.Add(b);
+            }
+            drawBar.Controls.Add(undoB);
+            drawBar.Controls.Add(clear);
+            drawBar.Controls.Add(done);
+        }
+
+        /// <summary>Turns free-draw mode on (shows the sketch area and drawing tools) or off.</summary>
+        internal void SetDrawMode(bool on)
+        {
+            if (Busy && on) return;
+            drawMode = on;
+            if (on)
+            {
+                if (!sketchOn) { sketch.Height = sketchHeight; sketch.Visible = sketchOn = true; }
+                if (Width < 310) Width = 310;   // room for the whole toolbar
+            }
+            else if (!sketch.HasInk)
+            {
+                sketch.Visible = sketchOn = false;   // nothing drawn: drop the empty sketch area
+                sketch.Dirty = true;
+            }
+            sketch.Drawing = on;
+            formatBar.Visible = !on;
+            drawBar.Visible = on;
+            ApplyInkColor();
+            UpdateDrawButtons();
+            sketch.Invalidate();
+            AutoFit();
+            if (on) sketch.Focus(); else Body.Focus();
+            mgr.MarkDirty(this);
+        }
+
+        void ApplyInkColor()
+        {
+            sketch.InkColor = inkChoice == 0 ? TextColor(Theme.Dark) : InkColors[inkChoice];
+        }
+
+        void UpdateDrawButtons()
+        {
+            if (sizeButton == null) return;
+            bool dark = Theme.Dark;
+            Color fg = dark ? Color.FromArgb(215, 215, 215) : Color.FromArgb(60, 60, 60);
+            Color on = dark ? Color.FromArgb(70, 255, 255, 255) : Color.FromArgb(50, 0, 0, 0);
+            foreach (var kv in toolButtons)
+            {
+                if (kv.Value.Image != null) kv.Value.Image.Dispose();
+                kv.Value.Image = kv.Key == SketchTool.Pen ? SketchIcons.Pen(fg) : kv.Key == SketchTool.Brush ? SketchIcons.Brush(fg) : SketchIcons.Eraser(fg);
+                kv.Value.BackColor = sketch.Tool == kv.Key ? on : Color.Transparent;
+            }
+            for (int i = 0; i < colorButtons.Count; i++)
+            {
+                var b = colorButtons[i];
+                if (b.Image != null) b.Image.Dispose();
+                b.Image = SketchIcons.Swatch(i == 0 ? TextColor(dark) : InkColors[i], Color.FromArgb(120, fg));
+                b.BackColor = inkChoice == i ? on : Color.Transparent;
+            }
+            if (sizeButton.Image != null) sizeButton.Image.Dispose();
+            sizeButton.Image = SketchIcons.Dot(fg, new[] { 4, 8, 13 }[sketch.SizeLevel]);
+            foreach (Control c in drawBar.Controls)
+                if (!toolButtons.ContainsValue(c as Label) && !colorButtons.Contains(c as Label) && c != sizeButton) { c.ForeColor = fg; c.BackColor = Color.Transparent; }
+        }
+
+        void LoadSketch(int height)
+        {
+            string path = Path.Combine(ImageDir, "sketch.png");
+            if (!File.Exists(path)) return;
+            if (height > 40) sketchHeight = height;
+            sketch.Height = sketchHeight;
+            sketch.Visible = sketchOn = true;
+            try { sketch.LoadFrom(path); } catch { sketch.Visible = sketchOn = false; }
+            sketch.Dirty = false;
+        }
+
+        /// <summary>Writes (or removes) the sketch PNG when it changed. Called when the note is saved.</summary>
+        internal void SaveSketchIfDirty()
+        {
+            if (!sketch.Dirty) return;
+            string path = Path.Combine(ImageDir, "sketch.png");
+            try
+            {
+                if (sketchOn && sketch.HasInk) sketch.SaveTo(path);
+                else { if (File.Exists(path)) File.Delete(path); sketch.Dirty = false; }
+            }
+            catch { }
         }
 
         #endregion
@@ -805,7 +965,7 @@ namespace QwenPad
         int NeededHeight()
         {
             int text = Math.Max(contentHeight, Body.Font.Height);
-            return header.Height + titleRow.Height + formatBar.Height + (gallery.Visible ? gallery.Height : 0)
+            return header.Height + titleRow.Height + formatBar.Height + (images.Count > 0 ? gallery.Height : 0) + (sketchOn ? sketch.Height : 0)
                  + GripBottom + text + Body.Font.Height / 2 + 6;
         }
 
@@ -816,9 +976,9 @@ namespace QwenPad
         internal string Meta()
         {
             var b = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
-            return string.Format(CultureInfo.InvariantCulture, "#note x={0} y={1} w={2} h={3} bh={4} color={5} top={6} visible={7} op={8} at={9}",
+            return string.Format(CultureInfo.InvariantCulture, "#note x={0} y={1} w={2} h={3} bh={4} color={5} top={6} visible={7} op={8} at={9} sk={10} sh={11}",
                 b.X, b.Y, b.Width, b.Height, baseHeight > 0 ? baseHeight : b.Height, ColorIndex, TopMost ? 1 : 0,
-                WantsVisible ? 1 : 0, OpacityPercent, AutoTitleTried ? 1 : 0);
+                WantsVisible ? 1 : 0, OpacityPercent, AutoTitleTried ? 1 : 0, sketchOn && sketch.HasInk ? 1 : 0, sketchHeight);
         }
 
         internal void ApplyMeta(string line)
@@ -830,7 +990,8 @@ namespace QwenPad
                 if (eq > 0 && int.TryParse(part.Substring(eq + 1), NumberStyles.Integer, CultureInfo.InvariantCulture, out n))
                     v[part.Substring(0, eq)] = n;
             }
-            int x, y, w, h, bh, c, top, vis, op, at;
+            int x, y, w, h, bh, c, top, vis, op, at, sk, sh;
+            if (v.TryGetValue("sk", out sk) && sk == 1) LoadSketch(v.TryGetValue("sh", out sh) ? sh : 0);
             if (v.TryGetValue("w", out w) && v.TryGetValue("h", out h)) Size = new Size(w, h);
             baseHeight = v.TryGetValue("bh", out bh) && bh > 0 ? bh : Height;
             if (v.TryGetValue("x", out x) && v.TryGetValue("y", out y)) Location = new Point(x, y);
@@ -898,6 +1059,18 @@ namespace QwenPad
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
             bool inBody = Body.Focused || ActiveControl == Body;   // the text box, not the title
+            if (drawMode)
+            {
+                bool onCanvas = sketch.Focused || ActiveControl == sketch;
+                switch (keyData)
+                {
+                    case Keys.Escape: SetDrawMode(false); return true;
+                    case Keys.Control | Keys.Z: sketch.Undo(); return true;
+                    case Keys.P: if (onCanvas) { sketch.Tool = SketchTool.Pen; UpdateDrawButtons(); return true; } break;
+                    case Keys.B: if (onCanvas) { sketch.Tool = SketchTool.Brush; UpdateDrawButtons(); return true; } break;
+                    case Keys.E: if (onCanvas) { sketch.Tool = SketchTool.Eraser; UpdateDrawButtons(); return true; } break;
+                }
+            }
             switch (keyData)
             {
                 case Keys.Escape:
@@ -1386,6 +1559,7 @@ namespace QwenPad
             try { Directory.CreateDirectory(Dir); } catch { return; }
             foreach (var note in dirty)
             {
+                note.SaveSketchIfDirty();
                 try { File.WriteAllText(PathOf(note), note.Meta() + "\r\n" + note.InfoLines() + note.BodyForSave(), new UTF8Encoding(false)); }
                 catch { }
             }

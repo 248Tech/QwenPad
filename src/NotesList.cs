@@ -242,7 +242,7 @@ namespace QwenPad
             int pad = 10, y = 12;
             string date = Note.CreatedOn.Date == DateTime.Today ? Note.CreatedOn.ToShortTimeString()
                         : Note.CreatedOn.Year == DateTime.Today.Year ? Note.CreatedOn.ToString("MMM d") : Note.CreatedOn.ToString("MMM d, yyyy");
-            string flags = (Note.TopMost ? "📌 " : "") + (Note.WantsVisible ? "" : "hidden · ") + date;
+            string flags = (Note.TopMost ? "📌 " : "") + (Note.HasSketch ? "✏ " : "") + (Note.WantsVisible ? "" : "hidden · ") + date;
             using (var small = new Font(StickyNote.HandFont, 9.5f))
             {
                 var sz = TextRenderer.MeasureText(g, flags, small);

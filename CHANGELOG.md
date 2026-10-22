@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0] - 2026-10-22
+
+### Added
+- **Free draw in sticky notes:** the ✏ button (or ⋯ > Draw) opens a sketch area with a **pen**, a semi-transparent **paint brush**, and an **eraser**. Pick from five colors (ink, red, blue, green, highlighter yellow) and three sizes, with undo (Ctrl+Z), clear, and P / B / E to switch tools. Esc or ✓ finishes. Sketches are saved per note as transparent PNGs, and the Notes List marks notes that have one with ✏.
+
+### Fixed
+- Task notes from **Tasks From Email** showed a box instead of the calendar emoji; they now say "Due:".
 ## [1.5.0] - 2026-10-22
 
 ### Added
