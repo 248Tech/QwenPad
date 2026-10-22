@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.5.0] - 2026-10-22
+
+### Added
+- **Rich text in sticky notes:** bold (Ctrl+B), italic (Ctrl+I), underline (Ctrl+U), strikethrough (Ctrl+T) and bullets (Ctrl+Shift+L), from a format bar along the bottom of each note. Formatting is saved; plain text pastes in the note's own style.
+- **Images and GIFs in notes:** the 🖼 button, paste, or drag-and-drop. Images show at the note's width and **animated GIFs play**. Click one to open it, right-click to copy or remove it.
+- **Opacity:** ⋯ > Opacity, from 100% down to 30%, per note.
+- **Layers:** ⋯ > Layer > Bring to Front / Move Forward / Move Back / Send to Back, or **Ctrl+scroll wheel** over a note.
+- **Notes List:** ⋯ > Notes List (or Notes > Notes List, Ctrl+Shift+L) opens a palette of all notes as colored cards with search. Click to select, double-click or Enter to open, right-click to show, hide, pin or delete.
+- **Automatic titles:** when a note has text but no title, Qwen writes one a few seconds after you stop typing (once per note; your own titles are never replaced).
+- **Qwen > Tasks From Email:** paste an email into the editor and Qwen turns each action item into a blue task note with a title, due date and details.
+- The Menu key or Shift+F10 opens a note's ⋯ menu from the keyboard.
 ## [1.4.0] - 2026-10-22
 
 ### Added

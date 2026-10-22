@@ -46,6 +46,7 @@ namespace QwenPad
         readonly ServerManager server = new ServerManager();
         readonly LlmClient llm;
         readonly LlmClient noteLlm;   // separate client so a note summary doesn't share the editor's abort handle
+        readonly LlmClient titleLlm;  // background titles and email tasks, so they never cancel a note's Ask
         readonly NoteManager notes;
         readonly List<ToolStripItem> aiItems = new List<ToolStripItem>();
 
@@ -90,7 +91,8 @@ namespace QwenPad
         {
             llm = new LlmClient(settings);
             noteLlm = new LlmClient(settings);
-            notes = new NoteManager(InsertFromNote, AskInNote);
+            titleLlm = new LlmClient(settings);
+            notes = new NoteManager(InsertFromNote, AskInNote, AutoTitleNote);
             Theme.SetMode(settings.Theme);
             Text = AppName;
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
@@ -263,6 +265,7 @@ namespace QwenPad
                 Item("&Hide All Notes", Keys.None, delegate { notes.HideAll(); }),
                 Item("📌 &Pin All Notes on Top", Keys.None, delegate { notes.ShowAll(); notes.PinAll(true); }),
                 Item("&Unpin All Notes", Keys.None, delegate { notes.PinAll(false); }),
+                Item("☰ Notes &List...", Keys.Control | Keys.Shift | Keys.L, delegate { if (NotesAvailable()) notes.ShowList(this); }),
                 new ToolStripSeparator()
             });
             notesStaticCount = miNotes.DropDownItems.Count;
@@ -353,7 +356,8 @@ namespace QwenPad
                 add("&Continue Writing", Keys.Control | Keys.Enter, delegate { ContinueWriting(); }),
                 rewrite,
                 add("Su&mmarize", Keys.None, delegate { Rewrite("Summarize the text in a short paragraph.", true); }),
-                add("&Key Points", Keys.None, delegate { Rewrite("List the key points of the text as a short bulleted list using \"- \" bullets.", true); })
+                add("&Key Points", Keys.None, delegate { Rewrite("List the key points of the text as a short bulleted list using \"- \" bullets.", true); }),
+                add("✦ Tasks From &Email", Keys.None, delegate { TasksFromEmail(); })
             });
         }
 
@@ -1226,7 +1230,7 @@ namespace QwenPad
                     if (result.Length > 0 && result != original)
                     {
                         note.Body.Select(start, original.Length);
-                        note.Body.Paste(result);   // single undoable edit
+                        note.ReplaceSelectionUndoable(result);   // single undoable edit
                         if (replace) note.Body.Select(start, result.Length);
                     }
                     else note.Body.Select(start, original.Length);
@@ -1277,6 +1281,129 @@ namespace QwenPad
                     ToolTipText = note.WantsVisible ? "Bring to front" : "Show note"
                 });
             }
+        }
+
+        /// <summary>Generates a title for a note in the background. False if Qwen isn't ready (the note retries later).</summary>
+        bool AutoTitleNote(StickyNote note)
+        {
+            if (serverState != "ready") return false;
+            string text = note.Body.Text.Trim();
+            if (text.Length > 3000) text = text.Substring(0, 3000);
+            string prompt = "Write a short title (2 to 6 words) for this sticky note. Output only the title: no quotes, " +
+                            "no trailing period and no \"Title:\" prefix.\n\n<note>\n" + text + "\n</note>";
+            var t = new Thread(() =>
+            {
+                var raw = new StringBuilder();
+                try { titleLlm.Stream(SystemPrompt, prompt, d => raw.Append(d), () => note.IsDisposed || raw.Length > 300); }
+                catch { }
+                string title = CleanTitle(NoteText(raw.ToString(), true));
+                SafeInvoke(() => note.ApplyAutoTitle(title));
+            });
+            t.IsBackground = true;
+            t.Start();
+            return true;
+        }
+
+        static string CleanTitle(string s)
+        {
+            s = s.Replace("\r", "").Trim();
+            int nl = s.IndexOf('\n');
+            if (nl >= 0) s = s.Substring(0, nl);
+            s = Regex.Replace(s, @"^\s*title\s*:\s*", "", RegexOptions.IgnoreCase);
+            s = s.Trim().Trim('"', '\'', '*', '#', '“', '”', '`', ' ').TrimEnd('.', ':').Trim();
+            return s.Length > 60 ? s.Substring(0, 60).TrimEnd() : s;
+        }
+
+        bool tasksRunning;
+
+        /// <summary>Qwen > Tasks From Email: turns the email in the editor (or the selection) into task sticky notes.</summary>
+        void TasksFromEmail()
+        {
+            if (!NotesAvailable()) return;
+            if (tasksRunning) { ShowNote("✦ Qwen is still reading the email…"); return; }
+            string email = (editor.SelectionLength > 0 ? editor.SelectedText : editor.Text).Trim();
+            if (email.Length < 20)
+            {
+                MessageBox.Show(this, "Paste an email into the editor (or select one), then choose Qwen > Tasks From Email.",
+                    AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            if (!EnsureReady()) return;
+            if (email.Length > 12000) email = email.Substring(0, 12000);
+            string prompt =
+                "Read the email below and pull out the concrete tasks the reader needs to do: requests, deadlines, follow-ups " +
+                "and things they agreed to. For each task output exactly this block:\n" +
+                "TASK: <short imperative title, at most 8 words>\n" +
+                "DUE: <the deadline or date mentioned, or none>\n" +
+                "DETAILS: <one or two short sentences with the specifics: who, what, where>\n" +
+                "---\n" +
+                "Output only these blocks, at most 10, most important first. If the email asks nothing of the reader, output NONE." +
+                "\n\n<email>\n" + email + "\n</email>";
+            tasksRunning = true;
+            note = "✦ Qwen is reading the email for tasks…";
+            noteUntil = DateTime.Now.AddMinutes(5);
+            SetAiStatus();
+            var t = new Thread(() =>
+            {
+                var raw = new StringBuilder();
+                string error = null;
+                try { titleLlm.Stream(SystemPrompt, prompt, d => raw.Append(d), () => false); }
+                catch (Exception ex) { error = ex.Message; }
+                string result = raw.ToString();
+                SafeInvoke(() => CreateTaskNotes(result, error));
+            });
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        void CreateTaskNotes(string raw, string error)
+        {
+            tasksRunning = false;
+            var tasks = ParseTasks(NoteText(raw, true));
+            if (tasks.Count == 0)
+            {
+                ShowNote(error != null ? "Qwen error: " + error : "No tasks found in that email.");
+                MessageBox.Show(this, error != null ? "Qwen ran into a problem:\n\n" + error : "Qwen didn't find any tasks for you in that email.",
+                    AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            foreach (var task in tasks)
+            {
+                string body = task[2];
+                if (task[1].Length > 0 && !task[1].Equals("none", StringComparison.OrdinalIgnoreCase)) body += (body.Length > 0 ? "\r\n" : "") + "📅 Due: " + task[1];
+                notes.New(body, Bounds, task[0], 4);   // blue, so tasks stand out from ordinary notes
+            }
+            ShowNote(string.Format("✦ Created {0} task note{1} from the email.", tasks.Count, tasks.Count == 1 ? "" : "s"));
+        }
+
+        /// <summary>Parses TASK / DUE / DETAILS blocks into {title, due, details}; tolerant of Markdown decoration.</summary>
+        static List<string[]> ParseTasks(string s)
+        {
+            var list = new List<string[]>();
+            string title = null, due = "", details = "";
+            Action flush = () =>
+            {
+                if (!string.IsNullOrEmpty(title)) list.Add(new[] { title, due, details });
+                title = null; due = ""; details = "";
+            };
+            foreach (string rawLine in s.Replace("\r", "").Split('\n'))
+            {
+                string line = rawLine.Replace("**", "").Trim().TrimStart('-', '#', '*', ' ').Trim();
+                line = Regex.Replace(line, @"^\d+[.)]\s*", "");
+                if (rawLine.Trim().StartsWith("---")) { flush(); continue; }
+                var m = Regex.Match(line, @"^(TASK|DUE|DETAILS)\s*:\s*(.*)$", RegexOptions.IgnoreCase);
+                if (!m.Success)
+                {
+                    if (title != null && line.Length > 0) details = (details + " " + line).Trim();
+                    continue;
+                }
+                string key = m.Groups[1].Value.ToUpperInvariant(), value = m.Groups[2].Value.Trim();
+                if (key == "TASK") { flush(); title = value.TrimEnd('.'); }
+                else if (key == "DUE") due = value.Trim('.', ' ');
+                else details = value;
+            }
+            flush();
+            return list.Count > 10 ? list.GetRange(0, 10) : list;
         }
 
         void InsertFromNote(string text)
