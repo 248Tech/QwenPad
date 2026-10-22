@@ -73,7 +73,7 @@ With nothing selected, rewrite actions apply to the whole document. Every AI edi
 - Each note is its own window with a taskbar button grouped under QwenPad (minimize, restore, Alt+Tab).
 - Notes **auto-expand** to fit their text (scrollbar only when they reach the screen edge) and can be resized from any edge or the corner grip.
 - **Rich text** (bold, italic, underline, strikethrough, **font color**, bullets) and **images / animated GIFs** in notes.
-- **🍂 Fall designs**: Spooky Night, Pumpkin Patch, Moonlit Ghost and Harvest Moon note backgrounds.
+- **Seasonal designs**: 🍂 fall (Spooky Night, Pumpkin Patch, Moonlit Ghost, Harvest Moon, Hedgehog Hollow, Doodle Pumpkins) and ❄ winter (Snowflake Frost, Cozy Critters, Snowman Night) note backgrounds.
 - **Resizable images** (drag the corner); a **Clickable Images** setting (off by default) controls whether clicking opens them.
 - **✏ Free draw** with a pen, paint brush and eraser (five colors, three sizes, undo).
 - **Opacity**, **layers** (Bring to Front, Send to Back, or Ctrl+scroll), and a searchable **Notes List** palette.

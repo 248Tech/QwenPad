@@ -53,7 +53,7 @@ namespace QwenPad
         /// <summary>When false (the default), left-clicking an image doesn't open it; right-click > Open still does.</summary>
         internal static bool ClickableImages;
 
-        // Fall designs (see NoteDesigns): 0 = plain color.
+        // Seasonal designs (see NoteDesigns): 0 = plain color.
         internal int Design { get; private set; }
         Bitmap designCache;
         string designKey;
@@ -236,17 +236,17 @@ namespace QwenPad
                 menu.Items.Add(new ToolStripMenuItem(ColorNames[i], Swatch(i), delegate { SetDesign(0); SetColor(c); mgr.MarkDirty(this); }));
             }
             miTop = new ToolStripMenuItem("📌 &Pin on Top of All Windows", null, delegate { SetPinned(!TopMost); }) { ShortcutKeyDisplayString = "Ctrl+P" };
-            // Fall designs sit right under the colors, so colors and designs read as one palette.
-            menu.Items.Add(new ToolStripSeparator());
+            // Seasonal designs sit right under the colors, so colors and designs read as one palette (fall, then winter).
             var designItems = new List<ToolStripMenuItem>();
             for (int d = 1; d < NoteDesigns.Count; d++)
             {
                 int dd = d;
-                var item = new ToolStripMenuItem("🍂 " + NoteDesigns.Names[d], NoteDesigns.Thumbnail(d, 20, 20), delegate { SetDesign(dd); })
+                if (d == 1 || NoteDesigns.Season(d) != NoteDesigns.Season(d - 1)) menu.Items.Add(new ToolStripSeparator());
+                var item = new ToolStripMenuItem(NoteDesigns.Icon(d) + " " + NoteDesigns.Names[d], NoteDesigns.Thumbnail(d, 20, 20), delegate { SetDesign(dd); })
                 {
                     Tag = d,
                     ImageScaling = ToolStripItemImageScaling.None,
-                    ToolTipText = "Fall design"
+                    ToolTipText = NoteDesigns.Season(d) + " design"
                 };
                 designItems.Add(item);
                 menu.Items.Add(item);
@@ -626,7 +626,7 @@ namespace QwenPad
         }
 
         /// <summary>True when the header sits on a dark part of the window (dark mode or a dark design frame).</summary>
-        bool HeaderIsDark { get { return Design == 1 || Design == 3 || (Design == 0 && Theme.Dark); } }
+        bool HeaderIsDark { get { var st = NoteDesigns.StyleOf(Design); return st != null ? st.DarkHeader : Theme.Dark; } }
 
         Color HoverColor(bool dark) { return dark ? Color.FromArgb(55, 255, 255, 255) : Color.FromArgb(40, 0, 0, 0); }
 

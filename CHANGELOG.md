@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.9.0] - 2026-10-22
+
+### Added
+- **Five new sticky note designs** in each note's ⋯ menu, now grouped by season:
+  - 🍂 **Hedgehog Hollow**: cream paper with dotted lines inside a wreath of autumn leaves, acorns, mushrooms and hedgehogs.
+  - 🍂 **Doodle Pumpkins**: soft pink paper with hand-drawn pumpkins with faces, doodle flowers and sparkles.
+  - ❄ **Snowflake Frost**: an icy blue glow framed by big paper-cut snowflakes.
+  - ❄ **Cozy Critters**: a pale winter sky with clouds and wind swirls, and a tabby in a plaid scarf, a bulldog and a budgie in a bobble hat.
+  - ❄ **Snowman Night**: periwinkle grid paper with falling snow, pine trees, snowy hills and a snowman in a beanie.
+- Like the fall designs, they're drawn in code (sharp at any size, no image files), keep your text colors readable, and show in the Notes List.
+
 ## [1.8.1] - 2026-10-22
 
 ### Fixed
