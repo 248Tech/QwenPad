@@ -72,7 +72,7 @@ With nothing selected, rewrite actions apply to the whole document. Every AI edi
 - Each note has a **title**, a **date** (hover for created/edited times), and a **handwritten font**.
 - Each note is its own window with a taskbar button grouped under QwenPad (minimize, restore, Alt+Tab).
 - Notes **auto-expand** to fit their text (scrollbar only when they reach the screen edge) and can be resized from any edge or the corner grip.
-- **Rich text** (bold, italic, underline, strikethrough, bullets) and **images / animated GIFs** in notes.
+- **Rich text** (bold, italic, underline, strikethrough, **font color**, bullets) and **images / animated GIFs** in notes.
 - **🍂 Fall designs**: Spooky Night, Pumpkin Patch, Moonlit Ghost and Harvest Moon note backgrounds.
 - **Resizable images** (drag the corner); a **Clickable Images** setting (off by default) controls whether clicking opens them.
 - **✏ Free draw** with a pen, paint brush and eraser (five colors, three sizes, undo).
@@ -81,6 +81,7 @@ With nothing selected, rewrite actions apply to the whole document. Every AI edi
 - **📌 Pin** a note on top of all windows (pin button, Ctrl+P, or Notes > Pin All Notes on Top).
 - Six colors, drag to move, and **Insert into Document**.
 - Saved automatically as plain `.txt` files in `notes\` and restored on the next launch.
+- **Notes don't get lost:** saves are crash-safe (each note keeps its previous version as a `.bak`), deleted notes go to a trash for 30 days (**Notes > Restore Deleted Notes**), the notes folder is backed up to `backups\` daily and on every update (newest 15 kept), and **Notes > Import Notes** brings in notes from another QwenPad copy or a backup.
 
 ### 📝 Everything you expect from Notepad
 New/Open/Save/Save As/Print · Find/Replace (match case, wrap, up/down) · Go To line · Word wrap · Font · Zoom (Ctrl+Plus/Minus/0, Ctrl+wheel) · Status bar (Ln/Col, zoom, line endings, encoding) · Time/Date (F5) · Drag-and-drop · Ctrl+Backspace word delete. It detects and preserves **UTF-8, UTF-8 BOM, UTF-16 and ANSI** encodings and **CRLF/LF/CR** line endings.
@@ -105,7 +106,8 @@ QwenPad.exe        the app
 QwenPad.ini        settings (relative paths, so the folder can move)
 runtime\llama\     llama.cpp server + CUDA runtime + VC++ runtime
 models\            .gguf models (Qwen > Model lists them all)
-notes\             sticky notes as .txt
+notes\             sticky notes as .txt (notes\.trash = deleted, kept 30 days)
+backups\           automatic copies of notes\ (daily and on each update)
 logs\              model server log
 ```
 

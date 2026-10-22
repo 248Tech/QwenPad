@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -83,6 +84,8 @@ namespace QwenPad
         static float BodySize { get { return HandFont == "Ink Free" ? 12.5f : 10.5f; } }
         static float TitleSize { get { return HandFont == "Ink Free" ? 17f : 13.5f; } }
         readonly ContextMenuStrip menu = new ContextMenuStrip();
+        Label colorButton;
+        Color shownFontColor = Color.Black;
         readonly ToolStripMenuItem miTop, miOpacity;
         readonly List<Label> headerButtons = new List<Label>();
         readonly ToolTip headerTip = new ToolTip();
@@ -119,7 +122,7 @@ namespace QwenPad
             btnPin = HeaderButton("📌", "", DockStyle.Right, delegate { SetPinned(!TopMost); });
             header.Controls.Add(btnPin);
             header.Controls.Add(HeaderButton("⋯", "Menu", DockStyle.Right, (s, e) => menu.Show((Control)s, 0, ((Control)s).Height)));
-            header.Controls.Add(HeaderButton("✕", "Hide note (Ctrl+W)", DockStyle.Right, delegate { mgr.HideNote(this); }));
+            header.Controls.Add(HeaderButton("✕", "Hide note (Ctrl+W). It stays saved: open it again from the Notes List or the Notes menu.", DockStyle.Right, delegate { mgr.HideNote(this); }));
             header.Controls.Add(HeaderButton("+", "New note (Ctrl+N)", DockStyle.Left, delegate { mgr.New("", Bounds, like: this); }));
             lblStatus.Dock = DockStyle.Fill;
             lblStatus.TextAlign = ContentAlignment.MiddleLeft;
@@ -183,10 +186,17 @@ namespace QwenPad
             // Format bar along the bottom.
             formatBar.Dock = DockStyle.Bottom;
             formatBar.Height = Font.Height + 8;
-            // Docked Left in reverse, so they read B I U S • 🖼 ✏ from the left.
+            // Docked Left in reverse, so they read B I U S A • 🖼 ✏ from the left.
             formatBar.Controls.Add(FormatButton(-3, "✏", "Draw: pen, brush and eraser", new Font("Segoe UI Symbol", 10.5f), delegate { SetDrawMode(true); }));
             formatBar.Controls.Add(FormatButton(-2, "🖼", "Add an image or GIF", new Font("Segoe UI Symbol", 10f), delegate { ChooseImage(); }));
             formatBar.Controls.Add(FormatButton(-1, "•", "Bullets (Ctrl+Shift+L)", new Font("Segoe UI", 12f, FontStyle.Bold), delegate { ToggleBullets(); }));
+            colorButton = FormatButton(-4, "A", "Font color", new Font("Segoe UI", 10f, FontStyle.Bold), delegate { ShowFontColors(); });
+            colorButton.Padding = new Padding(0, 0, 0, 3);
+            colorButton.Paint += (s, e) =>
+            {
+                using (var b = new SolidBrush(shownFontColor)) e.Graphics.FillRectangle(b, colorButton.Width / 2 - 6, colorButton.Height - 6, 12, 3);
+            };
+            formatBar.Controls.Add(colorButton);
             formatBar.Controls.Add(FormatButton(CFM_STRIKEOUT, "S", "Strikethrough (Ctrl+T)", new Font("Segoe UI", 10f, FontStyle.Strikeout), delegate { ToggleEffect(CFM_STRIKEOUT); }));
             formatBar.Controls.Add(FormatButton(CFM_UNDERLINE, "U", "Underline (Ctrl+U)", new Font("Segoe UI", 10f, FontStyle.Underline), delegate { ToggleEffect(CFM_UNDERLINE); }));
             formatBar.Controls.Add(FormatButton(CFM_ITALIC, "I", "Italic (Ctrl+I)", new Font("Georgia", 10.5f, FontStyle.Italic), delegate { ToggleEffect(CFM_ITALIC); }));
@@ -565,6 +575,8 @@ namespace QwenPad
         internal void SetColor(int index)
         {
             ColorIndex = Math.Max(0, Math.Min(ColorNames.Length - 1, index));
+            // Setting ForeColor recolors every character, so take the text first and put its chosen colors back after.
+            string before = Body.IsHandleCreated || Body.TextLength > 0 ? Body.Rtf : null;
             bool dark = Theme.Dark;
             BackColor = Body.BackColor = BodyColor(ColorIndex, dark);
             header.BackColor = HeadColor(ColorIndex, dark);
@@ -595,7 +607,7 @@ namespace QwenPad
             ApplyInkColor();
             UpdateDrawButtons();
             sketch.Invalidate();
-            RecolorText();
+            RecolorText(before);
             UpdatePinButton();
             UpdateFormatButtons();
             designKey = null;
@@ -640,20 +652,26 @@ namespace QwenPad
             e.Graphics.DrawImage(designCache, 0, 0);
         }
 
-        /// <summary>Makes all body text the theme's text color (formatting other than color is kept).</summary>
-        void RecolorText()
+        /// <summary>
+        /// Gives text in an automatic color (black, dark-mode white or a design's ink) the current text color, so it
+        /// follows the theme and design; colors picked with the A button are kept. Works on the RTF color table.
+        /// </summary>
+        void RecolorText(string rtf = null)
         {
             if (!Body.IsHandleCreated && Body.TextLength == 0) return;
+            if (rtf == null) rtf = Body.Rtf;
+            string recolored = AutoColorsTo(rtf, Body.ForeColor);
+            if (recolored == Body.Rtf) return;
             bool wasLoading = loadingContent;
             loadingContent = true;
             int ss = Body.SelectionStart, sl = Body.SelectionLength;
             SendMessage(Body.Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero);
             try
             {
-                Body.SelectAll();
-                Body.SelectionColor = Body.ForeColor;
+                Body.Rtf = recolored;
                 Body.Select(ss, sl);
             }
+            catch { }
             finally
             {
                 SendMessage(Body.Handle, WM_SETREDRAW, (IntPtr)1, IntPtr.Zero);
@@ -661,6 +679,27 @@ namespace QwenPad
                 loadingContent = wasLoading;
             }
         }
+
+        static string AutoColorsTo(string rtf, Color target)
+        {
+            int start = rtf.IndexOf("{\\colortbl", StringComparison.Ordinal);
+            int end = start < 0 ? -1 : rtf.IndexOf('}', start);
+            if (end < 0) return rtf;
+            string to = string.Format(CultureInfo.InvariantCulture, "\\red{0}\\green{1}\\blue{2}", target.R, target.G, target.B);
+            string table = Regex.Replace(rtf.Substring(start, end - start), @"\\red(\d+)\\green(\d+)\\blue(\d+)", m =>
+                IsAutoColor(Color.FromArgb(int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value), int.Parse(m.Groups[3].Value))) ? to : m.Value);
+            return rtf.Substring(0, start) + table + rtf.Substring(end);
+        }
+
+        /// <summary>The text colors QwenPad sets by itself (as opposed to ones picked with the A button).</summary>
+        static bool IsAutoColor(Color c)
+        {
+            if (SameRgb(c, TextColor(false)) || SameRgb(c, TextColor(true))) return true;
+            for (int d = 1; d < NoteDesigns.Count; d++) if (SameRgb(c, NoteDesigns.StyleOf(d).Text)) return true;
+            return false;
+        }
+
+        static bool SameRgb(Color a, Color b) { return a.R == b.R && a.G == b.G && a.B == b.B; }
 
         #endregion
 
@@ -701,6 +740,56 @@ namespace QwenPad
             Edited(true);
         }
 
+        static readonly string[] FontColorNames = { "Red", "Orange", "Green", "Teal", "Blue", "Purple", "Pink", "Brown", "Gray" };
+        static readonly int[] FontColorRgb = { 0xDC2626, 0xEA580C, 0x16A34A, 0x0D9488, 0x2563EB, 0x9333EA, 0xDB2777, 0x92400E, 0x6B7280 };
+
+        /// <summary>The A button's palette: Automatic (follows the theme and design), nine colors, More Colors.</summary>
+        void ShowFontColors()
+        {
+            if (Busy) return;
+            var m = new ContextMenuStrip();
+            m.Items.Add(new ToolStripMenuItem("&Automatic", ColorChip(Body.ForeColor), delegate { ApplyFontColor(Body.ForeColor); })
+                { ToolTipText = "Follows light/dark mode and the note's design" });
+            m.Items.Add(new ToolStripSeparator());
+            for (int i = 0; i < FontColorNames.Length; i++)
+            {
+                Color c = FromRgb(FontColorRgb[i]);
+                m.Items.Add(new ToolStripMenuItem(FontColorNames[i], ColorChip(c), delegate { ApplyFontColor(c); }));
+            }
+            m.Items.Add(new ToolStripSeparator());
+            m.Items.Add(new ToolStripMenuItem("&More Colors...", null, delegate
+            {
+                using (var dlg = new ColorDialog { FullOpen = true, AnyColor = true, Color = shownFontColor })
+                    if (dlg.ShowDialog(this) == DialogResult.OK) ApplyFontColor(dlg.Color);
+            }));
+            m.Closed += delegate { BeginInvoke((Action)(() => m.Dispose())); };
+            m.Show(colorButton, new Point(0, 0), ToolStripDropDownDirection.AboveRight);
+        }
+
+        /// <summary>Colors the selection (or what's typed next, when nothing is selected).</summary>
+        void ApplyFontColor(Color c)
+        {
+            if (Busy || IsDisposed) return;
+            var set = new CHARFORMAT { cbSize = Marshal.SizeOf(typeof(CHARFORMAT)), dwMask = CFM_COLOR, crTextColor = ColorTranslator.ToWin32(c) };
+            SendMessage(Body.Handle, EM_SETCHARFORMAT, (IntPtr)SCF_SELECTION, ref set);
+            Body.Focus();
+            UpdateFormatButtons();
+            Edited(true);
+        }
+
+        static Image ColorChip(Color c)
+        {
+            var bmp = new Bitmap(14, 14);
+            using (var g = Graphics.FromImage(bmp))
+            using (var fill = new SolidBrush(c))
+            using (var pen = new Pen(Color.FromArgb(120, 0, 0, 0)))
+            {
+                g.FillRectangle(fill, 1, 1, 12, 12);
+                g.DrawRectangle(pen, 1, 1, 11, 11);
+            }
+            return bmp;
+        }
+
         CHARFORMAT GetCharFormat()
         {
             var cf = new CHARFORMAT { cbSize = Marshal.SizeOf(typeof(CHARFORMAT)) };
@@ -720,6 +809,10 @@ namespace QwenPad
                             : kv.Key == -1 && Body.SelectionBullet;
                 kv.Value.BackColor = active ? on : Color.Transparent;
             }
+            // The A button's bar shows the selection's color (automatic text shows the current text color).
+            Color sel = (cf.dwMask & CFM_COLOR) != 0 && (cf.dwEffects & CFE_AUTOCOLOR) == 0 ? ColorTranslator.FromWin32(cf.crTextColor) : Body.ForeColor;
+            if (IsAutoColor(sel)) sel = Body.ForeColor;
+            if (colorButton != null && sel.ToArgb() != shownFontColor.ToArgb()) { shownFontColor = sel; colorButton.Invalidate(); }
         }
 
         #endregion
@@ -1086,11 +1179,14 @@ namespace QwenPad
             gallery.Height = Math.Min(needed, 420);
         }
 
-        internal void DeleteFiles()
+        /// <summary>Lets go of the note's image files so its folder can be moved to the trash.</summary>
+        internal void ReleaseFiles()
         {
-            foreach (var kv in imageStreams) { try { kv.Value.Dispose(); } catch { } }
-            try { if (Directory.Exists(ImageDir)) Directory.Delete(ImageDir, true); } catch { }
+            foreach (var kv in imageStreams) { try { kv.Key.Image = null; kv.Value.Dispose(); } catch { } }
         }
+
+        /// <summary>True when deleting the note would lose something: text, a title, images or a drawing.</summary>
+        internal bool HasContent { get { return Body.Text.Trim().Length > 0 || TitleText.Length > 0 || images.Count > 0 || (sketchOn && sketch.HasInk); } }
 
         #endregion
 
@@ -1467,7 +1563,7 @@ namespace QwenPad
         const int WM_NCCALCSIZE = 0x83, WM_NCPAINT = 0x85, WM_NCACTIVATE = 0x86, WM_SETTEXT = 0x0C, WM_SETICON = 0x80;
         const int GWL_STYLE = -16, GWL_EXSTYLE = -20, WS_VISIBLE = 0x10000000, WS_EX_TOPMOST = 0x8;
         const int EM_GETCHARFORMAT = 0x43A, EM_SETCHARFORMAT = 0x444, SCF_SELECTION = 1;
-        const int CFM_BOLD = 1, CFM_ITALIC = 2, CFM_UNDERLINE = 4, CFM_STRIKEOUT = 8;
+        const int CFM_BOLD = 1, CFM_ITALIC = 2, CFM_UNDERLINE = 4, CFM_STRIKEOUT = 8, CFM_COLOR = 0x40000000, CFE_AUTOCOLOR = 0x40000000;
 
         static readonly IntPtr HWND_TOP = IntPtr.Zero, HWND_TOPMOST = (IntPtr)(-1), HWND_NOTOPMOST = (IntPtr)(-2);
         const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10;
@@ -1635,61 +1731,101 @@ namespace QwenPad
         void Load()
         {
             if (!Directory.Exists(Dir)) return;
+            AutoBackup();
+            PurgeTrash();
             loading = true;
+            var recovered = new List<StickyNote>();
             try
             {
-                foreach (string path in Directory.GetFiles(Dir, "*.txt"))
+                // Each note is <id>.txt; <id>.bak is its previous save, used if the .txt is missing or damaged.
+                var ids = new List<string>();
+                foreach (string pattern in new[] { "*.txt", "*.bak" })
+                    foreach (string path in Directory.GetFiles(Dir, pattern))
+                    {
+                        string id = Path.GetFileNameWithoutExtension(path);
+                        if (!ids.Contains(id)) ids.Add(id);
+                    }
+                ids.Sort(StringComparer.OrdinalIgnoreCase);
+                foreach (string id in ids)
                 {
-                    try
+                    StickyNote note = null;
+                    foreach (string ext in new[] { ".txt", ".bak" })
                     {
-                        string all = File.ReadAllText(path, Encoding.UTF8);
-                        int nl = all.IndexOf('\n');
-                        string head = (nl >= 0 ? all.Substring(0, nl) : all).TrimEnd('\r');
-                        if (!head.StartsWith("#note")) continue;
-                        var note = new StickyNote(this, Path.GetFileNameWithoutExtension(path));
-                        note.ApplyMeta(head);
-                        // Optional header lines (1.3+): #title, #created, #modified, #images, #format. Older files
-                        // have none, so their dates fall back to the file's own timestamps and the body is plain text.
-                        string rest = nl >= 0 ? all.Substring(nl + 1) : "", title = "";
-                        DateTime created = File.GetCreationTime(path), modified = File.GetLastWriteTime(path);
-                        bool rtf = false;
-                        string[] imgs = new string[0];
-                        while (rest.StartsWith("#title ") || rest.StartsWith("#created ") || rest.StartsWith("#modified ") ||
-                               rest.StartsWith("#images ") || rest.StartsWith("#format "))
-                        {
-                            int end = rest.IndexOf('\n');
-                            string line = (end >= 0 ? rest.Substring(0, end) : rest).TrimEnd('\r');
-                            rest = end >= 0 ? rest.Substring(end + 1) : "";
-                            int sp = line.IndexOf(' ');
-                            string key = line.Substring(1, sp - 1), value = line.Substring(sp + 1);
-                            DateTime d;
-                            if (key == "title") title = value;
-                            else if (key == "format") rtf = value.Trim() == "rtf";
-                            else if (key == "images") imgs = value.Split('|');
-                            else if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out d))
-                            {
-                                if (key == "created") created = d; else modified = d;
-                            }
-                        }
-                        note.LoadContent(title, rtf ? rest : Crlf(rest), rtf, created, modified);
-                        note.LoadImages(imgs);
-                        notes.Add(note);
-                        if (note.WantsVisible) note.Show();
+                        string path = Path.Combine(Dir, id + ext);
+                        if (!File.Exists(path)) continue;
+                        try { note = LoadFile(path, id); }
+                        catch (Exception ex) { LogError(path, ex); }
+                        if (note != null) { if (ext == ".bak") recovered.Add(note); break; }
                     }
-                    catch (Exception ex)
-                    {
-                        // Skip a damaged note, but leave a trace so it can be diagnosed.
-                        try
-                        {
-                            string log = Path.Combine(Settings.AppDir, "logs");
-                            Directory.CreateDirectory(log);
-                            File.AppendAllText(Path.Combine(log, "notes-errors.log"), DateTime.Now.ToString("s") + " " + Path.GetFileName(path) + ": " + ex + "\r\n");
-                        }
-                        catch { }
-                    }
+                    if (note == null) continue;
+                    notes.Add(note);
+                    if (note.WantsVisible) note.Show();
                 }
             }
             finally { loading = false; }
+            foreach (var n in recovered) MarkDirty(n);   // rewrite the .txt from the backup copy
+        }
+
+        /// <summary>Reads one note file; null if it isn't a note (or is empty, e.g. cut short by a crash).</summary>
+        StickyNote LoadFile(string path, string id)
+        {
+            string all = File.ReadAllText(path, Encoding.UTF8);
+            int nl = all.IndexOf('\n');
+            string head = (nl >= 0 ? all.Substring(0, nl) : all).TrimEnd('\r');
+            if (!head.StartsWith("#note")) return null;
+            var note = new StickyNote(this, id);
+            try
+            {
+                note.ApplyMeta(head);
+                // Optional header lines (1.3+): #title, #created, #modified, #images, then #format last. Older files
+                // have none, so their dates fall back to the file's own timestamps and the body is plain text.
+                // When a #format line follows, any other "#key value" lines before it come from a newer version and
+                // are skipped, so a note saved by a later QwenPad still opens here.
+                string rest = nl >= 0 ? all.Substring(nl + 1) : "", title = "";
+                bool hasFormat = rest.StartsWith("#format ") || rest.Contains("\n#format ");
+                DateTime created = File.GetCreationTime(path), modified = File.GetLastWriteTime(path);
+                bool rtf = false;
+                string[] imgs = new string[0];
+                while (rest.StartsWith("#title ") || rest.StartsWith("#created ") || rest.StartsWith("#modified ") ||
+                       rest.StartsWith("#images ") || rest.StartsWith("#format ") || (hasFormat && Regex.IsMatch(rest, @"^#[a-z]+ ")))
+                {
+                    int end = rest.IndexOf('\n');
+                    string line = (end >= 0 ? rest.Substring(0, end) : rest).TrimEnd('\r');
+                    rest = end >= 0 ? rest.Substring(end + 1) : "";
+                    int sp = line.IndexOf(' ');
+                    string key = line.Substring(1, sp - 1), value = line.Substring(sp + 1);
+                    DateTime d;
+                    if (key == "title") title = value;
+                    else if (key == "format") { rtf = value.Trim() == "rtf"; break; }
+                    else if (key == "images") imgs = value.Split('|');
+                    else if ((key == "created" || key == "modified") &&
+                             DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out d))
+                    {
+                        if (key == "created") created = d; else modified = d;
+                    }
+                }
+                note.LoadContent(title, rtf ? rest : Crlf(rest), rtf, created, modified);
+                note.LoadImages(imgs);
+                return note;
+            }
+            catch
+            {
+                note.AllowClose = true;
+                note.Dispose();
+                throw;
+            }
+        }
+
+        static void LogError(string path, Exception ex)
+        {
+            // Skip a damaged note, but leave a trace so it can be diagnosed.
+            try
+            {
+                string log = Path.Combine(Settings.AppDir, "logs");
+                Directory.CreateDirectory(log);
+                File.AppendAllText(Path.Combine(log, "notes-errors.log"), DateTime.Now.ToString("s") + " " + Path.GetFileName(path) + ": " + ex + "\r\n");
+            }
+            catch { }
         }
 
         /// <summary>Creates a note next to the given window bounds.</summary>
@@ -1801,18 +1937,207 @@ namespace QwenPad
             return list;
         }
 
+        /// <summary>Moves a note to the trash (notes\.trash, kept 30 days; Notes > Restore Deleted Notes brings it back).</summary>
         public void Delete(StickyNote note)
         {
-            if (note.Body.Text.Trim().Length > 0 &&
-                MessageBox.Show(note.Visible ? (IWin32Window)note : listForm, "Delete this note?", "Sticky Notes", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            if (note.HasContent &&
+                MessageBox.Show(note.Visible ? (IWin32Window)note : listForm, "Delete this note?\n\nYou can bring it back for 30 days with Notes > Restore Deleted Notes.",
+                                "Sticky Notes", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
                 return;
-            dirty.Remove(note);
+            // Save its latest text first, so the trashed copy is complete.
+            Flush();
             notes.Remove(note);
-            try { File.Delete(PathOf(note)); } catch { }
-            note.DeleteFiles();
+            note.ReleaseFiles();
             note.AllowClose = true;
             note.Close();
+            try
+            {
+                Directory.CreateDirectory(TrashDir);
+                string id = FreeId(TrashDir, note.Id);
+                string txt = PathOf(note);
+                if (File.Exists(txt)) { File.Move(txt, Path.Combine(TrashDir, id + ".txt")); File.SetLastWriteTime(Path.Combine(TrashDir, id + ".txt"), DateTime.Now); }
+                string bak = Path.Combine(Dir, note.Id + ".bak");
+                if (File.Exists(bak)) File.Delete(bak);
+                string files = Path.Combine(Dir, note.Id);
+                if (Directory.Exists(files)) Directory.Move(files, Path.Combine(TrashDir, id));
+            }
+            catch (Exception ex) { LogError(PathOf(note), ex); }
             RaiseChanged();
+        }
+
+        static string TrashDir { get { return Path.Combine(Dir, ".trash"); } }
+
+        /// <summary>An id that's free in the folder (the given one, or it with a suffix).</summary>
+        static string FreeId(string dir, string id)
+        {
+            string free = id;
+            for (int i = 2; File.Exists(Path.Combine(dir, free + ".txt")) || Directory.Exists(Path.Combine(dir, free)); i++) free = id + "-" + i;
+            return free;
+        }
+
+        /// <summary>Empties the trash of notes deleted more than 30 days ago.</summary>
+        static void PurgeTrash()
+        {
+            try
+            {
+                if (!Directory.Exists(TrashDir)) return;
+                foreach (string f in Directory.GetFiles(TrashDir, "*.txt"))
+                {
+                    if (File.GetLastWriteTime(f) > DateTime.Now.AddDays(-30)) continue;
+                    string files = Path.Combine(TrashDir, Path.GetFileNameWithoutExtension(f));
+                    try { if (Directory.Exists(files)) Directory.Delete(files, true); File.Delete(f); } catch { }
+                }
+            }
+            catch { }
+        }
+
+        /// <summary>Deleted notes, newest first: (id, title, deleted on).</summary>
+        public List<Tuple<string, string, DateTime>> TrashedNotes()
+        {
+            var list = new List<Tuple<string, string, DateTime>>();
+            try
+            {
+                if (!Directory.Exists(TrashDir)) return list;
+                foreach (string f in Directory.GetFiles(TrashDir, "*.txt"))
+                    list.Add(Tuple.Create(Path.GetFileNameWithoutExtension(f), PeekTitle(f), File.GetLastWriteTime(f)));
+            }
+            catch { }
+            list.Sort((a, b) => b.Item3.CompareTo(a.Item3));
+            return list;
+        }
+
+        /// <summary>A note file's title, or its first line of text, without opening it as a note.</summary>
+        static string PeekTitle(string path)
+        {
+            try
+            {
+                string all = File.ReadAllText(path, Encoding.UTF8);
+                var m = Regex.Match(all, @"^#title (.+?)\r?$", RegexOptions.Multiline);
+                if (m.Success && m.Groups[1].Value.Trim().Length > 0) return m.Groups[1].Value.Trim();
+                int f = all.IndexOf("\n#format ", StringComparison.Ordinal);
+                string body = f >= 0 ? all.Substring(all.IndexOf('\n', f + 1) + 1) : all.Substring(all.IndexOf('\n') + 1);
+                if (body.StartsWith("{\\rtf"))
+                    using (var rtb = new RichTextBox()) { try { rtb.Rtf = body; body = rtb.Text; } catch { } }
+                foreach (string line in body.Split('\n'))
+                {
+                    string t = line.Trim().TrimStart('•', '-', '*', '#', ' ');
+                    if (t.Length > 0) return t.Length > 50 ? t.Substring(0, 50) + "…" : t;
+                }
+            }
+            catch { }
+            return "(empty note)";
+        }
+
+        /// <summary>Moves a note back from the trash and opens it.</summary>
+        public StickyNote Restore(string trashId)
+        {
+            if (!Available) return null;
+            try
+            {
+                string src = Path.Combine(TrashDir, trashId + ".txt");
+                if (!File.Exists(src)) return null;
+                string id = FreeId(Dir, trashId);
+                File.Move(src, Path.Combine(Dir, id + ".txt"));
+                string files = Path.Combine(TrashDir, trashId);
+                if (Directory.Exists(files)) Directory.Move(files, Path.Combine(Dir, id));
+                return Open(Path.Combine(Dir, id + ".txt"), id);
+            }
+            catch (Exception ex) { LogError(trashId, ex); return null; }
+        }
+
+        StickyNote Open(string path, string id)
+        {
+            StickyNote note;
+            loading = true;
+            try { note = LoadFile(path, id); }
+            finally { loading = false; }
+            if (note == null) return null;
+            notes.Add(note);
+            ShowNote(note);
+            RaiseChanged();
+            return note;
+        }
+
+        /// <summary>
+        /// Copies the notes from another QwenPad folder (its notes folder, the folder holding it, or a backup) into
+        /// this one. Notes already here are skipped; a different note with the same id gets a new id. Returns how
+        /// many were added.
+        /// </summary>
+        public int Import(string folder)
+        {
+            if (!Available) return 0;
+            if (Directory.Exists(Path.Combine(folder, "notes"))) folder = Path.Combine(folder, "notes");
+            if (string.Equals(Path.GetFullPath(folder).TrimEnd('\\'), Path.GetFullPath(Dir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return 0;
+            Flush();
+            Directory.CreateDirectory(Dir);
+            int added = 0;
+            foreach (string src in Directory.GetFiles(folder, "*.txt"))
+            {
+                try
+                {
+                    string text = File.ReadAllText(src, Encoding.UTF8);
+                    if (!text.StartsWith("#note")) continue;
+                    string id = Path.GetFileNameWithoutExtension(src), dest = Path.Combine(Dir, id + ".txt");
+                    if (File.Exists(dest))
+                    {
+                        if (SameNote(File.ReadAllText(dest, Encoding.UTF8), text)) continue;
+                        id = FreeId(Dir, id);
+                        dest = Path.Combine(Dir, id + ".txt");
+                    }
+                    else if (Directory.Exists(Path.Combine(Dir, id))) { id = FreeId(Dir, id); dest = Path.Combine(Dir, id + ".txt"); }
+                    CopyDir(Path.Combine(folder, Path.GetFileNameWithoutExtension(src)), Path.Combine(Dir, id));
+                    File.Copy(src, dest);
+                    if (Open(dest, id) != null) added++;
+                }
+                catch (Exception ex) { LogError(src, ex); }
+            }
+            return added;
+        }
+
+        /// <summary>Same note content, ignoring the position/visibility line (which changes as notes move).</summary>
+        static bool SameNote(string a, string b)
+        {
+            int ia = a.IndexOf('\n'), ib = b.IndexOf('\n');
+            return ia >= 0 && ib >= 0 && a.Substring(ia) == b.Substring(ib);
+        }
+
+        static void CopyDir(string from, string to)
+        {
+            if (!Directory.Exists(from)) return;
+            Directory.CreateDirectory(to);
+            foreach (string f in Directory.GetFiles(from)) File.Copy(f, Path.Combine(to, Path.GetFileName(f)), true);
+            foreach (string d in Directory.GetDirectories(from)) CopyDir(d, Path.Combine(to, Path.GetFileName(d)));
+        }
+
+        public static string BackupRoot { get { return Path.Combine(Settings.AppDir, "backups"); } }
+
+        /// <summary>
+        /// Copies the notes folder to backups\notes-&lt;time&gt;-v&lt;version&gt; once a day and whenever QwenPad's version
+        /// changes (so an update can never cost notes), keeping the newest 15.
+        /// </summary>
+        static void AutoBackup()
+        {
+            try
+            {
+                if (Directory.GetFiles(Dir, "*.txt").Length == 0) return;
+                string ver = "v" + typeof(NoteManager).Assembly.GetName().Version.ToString(3);
+                var old = Directory.Exists(BackupRoot) ? new List<string>(Directory.GetDirectories(BackupRoot, "notes-*")) : new List<string>();
+                old.Sort(StringComparer.OrdinalIgnoreCase);   // names start with the time, so this is oldest first
+                if (old.Count > 0)
+                {
+                    string last = old[old.Count - 1];
+                    if (last.EndsWith("-" + ver, StringComparison.OrdinalIgnoreCase) && Directory.GetCreationTime(last) > DateTime.Now.AddDays(-1)) return;
+                }
+                string dest = Path.Combine(BackupRoot, "notes-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + "-" + ver);
+                Directory.CreateDirectory(dest);
+                foreach (string f in Directory.GetFiles(Dir))
+                    if (!f.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)) File.Copy(f, Path.Combine(dest, Path.GetFileName(f)), true);
+                foreach (string d in Directory.GetDirectories(Dir))
+                    if (Path.GetFileName(d) != ".trash") CopyDir(d, Path.Combine(dest, Path.GetFileName(d)));
+                old.Add(dest);
+                for (int i = 0; i < old.Count - 15; i++) try { Directory.Delete(old[i], true); } catch { }
+            }
+            catch (Exception ex) { LogError("backup", ex); }
         }
 
         public void InsertIntoDocument(string text) { insertIntoDocument(text); }
@@ -1864,8 +2189,20 @@ namespace QwenPad
             foreach (var note in dirty)
             {
                 note.SaveSketchIfDirty();
-                try { File.WriteAllText(PathOf(note), note.Meta() + "\r\n" + note.InfoLines() + note.BodyForSave(), new UTF8Encoding(false)); }
-                catch { }
+                // Write a temp file, then swap it in (keeping the previous save as <id>.bak), so a crash or power
+                // cut mid-save never leaves a half-written note.
+                string path = PathOf(note), tmp = Path.Combine(Dir, note.Id + ".tmp"), bak = Path.Combine(Dir, note.Id + ".bak");
+                try
+                {
+                    File.WriteAllText(tmp, note.Meta() + "\r\n" + note.InfoLines() + note.BodyForSave(), new UTF8Encoding(false));
+                    if (!File.Exists(path)) File.Move(tmp, path);
+                    else
+                    {
+                        try { File.Replace(tmp, path, bak, true); }
+                        catch (IOException) { File.Copy(path, bak, true); File.Copy(tmp, path, true); File.Delete(tmp); }   // e.g. drives without Replace
+                    }
+                }
+                catch (Exception ex) { LogError(path, ex); }
             }
             dirty.Clear();
             RaiseChanged();

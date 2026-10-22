@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.0] - 2026-10-22
+
+### Added
+- **Font color for sticky notes:** the new **A** button on a note's format bar opens a palette with Automatic, Red, Orange, Green, Teal, Blue, Purple, Pink, Brown, Gray, and More Colors. The bar under the A shows the selection's color. Picked colors are saved, and they stay put when you switch light/dark mode, note colors or fall designs. Automatic text still follows the theme and design.
+- **Notes > Restore Deleted Notes:** deleting a note now moves it (with its images and drawing) to a trash (`notes\.trash`) for 30 days instead of erasing it.
+- **Automatic note backups:** the notes folder is copied to `backups\notes-<date>-v<version>` once a day and whenever QwenPad is updated, keeping the newest 15. **Notes > Open Notes Backups Folder** opens them.
+- **Notes > Import Notes:** brings in notes from another QwenPad folder (such as an older portable copy) or a backup. Notes you already have are skipped.
+- On startup, the status bar says how many notes are hidden and how to bring them back.
+
+### Changed
+- **Crash-safe saving:** notes are written to a temp file and swapped in, and the previous save is kept as `<id>.bak`. If a note file is ever empty or damaged, the backup copy is loaded instead.
+- Deleting asks for confirmation whenever the note has a title, images or a drawing, not just text.
+- Notes saved by a newer QwenPad (with extra header lines) still open in this version.
 ## [1.7.2] - 2026-10-22
 
 ### Fixed

@@ -165,7 +165,14 @@ namespace QwenPad
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
-            if (notes.Available) Activate();   // claims and reopens saved sticky notes, keeping focus on the editor
+            if (notes.Available)   // claims and reopens saved sticky notes, keeping focus on the editor
+            {
+                Activate();
+                int hidden = notes.Notes.Count - notes.CountVisible();
+                if (hidden > 0)
+                    ShowNote(hidden == 1 ? "1 sticky note is hidden: Notes > Notes List or Show All Notes brings it back."
+                                         : hidden + " sticky notes are hidden: Notes > Notes List or Show All Notes brings them back.");
+            }
             // Reuse a server that is already running (e.g. from another QwenPad window); otherwise start one.
             ThreadPool.QueueUserWorkItem(delegate
             {
@@ -274,6 +281,13 @@ namespace QwenPad
                     notes.ApplyImageMode();
                     ShowNote(settings.ClickableImages ? "Clicking a note's image now opens it." : "Images no longer open on click (right-click > Open still works).");
                 })),
+                new ToolStripSeparator(),
+                Item("&Restore Deleted Notes...", Keys.None, delegate { if (NotesAvailable()) RestoreDeletedNotes(); }),
+                Item("I&mport Notes...", Keys.None, delegate { if (NotesAvailable()) ImportNotes(); }),
+                Item("Open Notes &Backups Folder", Keys.None, delegate
+                {
+                    try { Directory.CreateDirectory(NoteManager.BackupRoot); Process.Start(NoteManager.BackupRoot); } catch { }
+                }),
                 new ToolStripSeparator()
             });
             notesStaticCount = miNotes.DropDownItems.Count;
@@ -1256,6 +1270,58 @@ namespace QwenPad
             MessageBox.Show(this, "Sticky notes are open in another QwenPad window. Use that window, or close it first.",
                 AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
             return false;
+        }
+
+        /// <summary>Lists the notes in the trash (deleted in the last 30 days) and brings back the chosen ones.</summary>
+        void RestoreDeletedNotes()
+        {
+            var trashed = notes.TrashedNotes();
+            if (trashed.Count == 0)
+            {
+                MessageBox.Show(this, "There are no deleted notes. Deleted notes are kept for 30 days.", AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            using (var dlg = new Form { Text = "Restore Deleted Notes", FormBorderStyle = FormBorderStyle.SizableToolWindow, StartPosition = FormStartPosition.CenterParent, ClientSize = new Size(460, 300), ShowInTaskbar = false, MinimizeBox = false, MaximizeBox = false })
+            {
+                var list = new ListView { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, CheckBoxes = true, HeaderStyle = ColumnHeaderStyle.Nonclickable, BorderStyle = BorderStyle.None };
+                list.Columns.Add("Note", 290);
+                list.Columns.Add("Deleted", 140);
+                foreach (var t in trashed)
+                    list.Items.Add(new ListViewItem(new[] { t.Item2, t.Item3.ToString("g") }) { Tag = t.Item1 });
+                list.Items[0].Selected = list.Items[0].Focused = true;   // Restore with nothing ticked brings back the latest
+                var bar = new FlowLayoutPanel { Dock = DockStyle.Bottom, FlowDirection = FlowDirection.RightToLeft, Height = 40, Padding = new Padding(6) };
+                var cancel = new Button { Text = "Close", DialogResult = DialogResult.Cancel, AutoSize = true };
+                var restore = new Button { Text = "Restore", DialogResult = DialogResult.OK, AutoSize = true };
+                bar.Controls.Add(cancel);
+                bar.Controls.Add(restore);
+                dlg.Controls.Add(list);
+                dlg.Controls.Add(bar);
+                dlg.AcceptButton = restore;
+                dlg.CancelButton = cancel;
+                list.ItemActivate += delegate { if (list.FocusedItem != null) list.FocusedItem.Checked = true; dlg.DialogResult = DialogResult.OK; };
+                Theme.ApplyForm(dlg);
+                list.BackColor = Theme.InputBack;
+                list.ForeColor = Theme.SurfaceFore;
+                if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                int n = 0;
+                foreach (ListViewItem item in list.Items)
+                    if ((item.Checked || item.Selected) && notes.Restore((string)item.Tag) != null) n++;
+                ShowNote(n == 1 ? "Restored 1 note." : "Restored " + n + " notes.");
+            }
+        }
+
+        /// <summary>Copies notes in from another QwenPad folder or a notes backup.</summary>
+        void ImportNotes()
+        {
+            using (var dlg = new FolderBrowserDialog { Description = "Choose another QwenPad folder, its notes folder, or a notes backup:", ShowNewFolderButton = false, SelectedPath = NoteManager.BackupRoot })
+            {
+                if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                int n;
+                try { n = notes.Import(dlg.SelectedPath); }
+                catch (Exception ex) { MessageBox.Show(this, "Couldn't import notes:\n" + ex.Message, AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                MessageBox.Show(this, n == 0 ? "No new notes were found there (notes you already have are skipped)." : n == 1 ? "Imported 1 note." : "Imported " + n + " notes.",
+                                AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
         }
 
         /// <summary>Rebuilds the list of notes below the fixed Notes menu items.</summary>
