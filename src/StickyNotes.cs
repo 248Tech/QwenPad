@@ -1548,7 +1548,14 @@ namespace QwenPad
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             // Alt+F4 on a note hides it; it is only really closed when deleted or when QwenPad exits.
-            if (!AllowClose && e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; mgr.HideNote(this); }
+            // A bare WM_CLOSE from another program (which WinForms reports as TaskManagerClosing) hides it too, rather
+            // than destroying the window while QwenPad keeps running.
+            if (!AllowClose && (e.CloseReason == CloseReason.UserClosing || e.CloseReason == CloseReason.TaskManagerClosing || e.CloseReason == CloseReason.None))
+            {
+                e.Cancel = true;
+                mgr.HideNote(this);
+                mgr.HiddenByClose(this);
+            }
             base.OnFormClosing(e);
         }
 
@@ -1921,6 +1928,41 @@ namespace QwenPad
             MarkDirty(note);
         }
 
+        // Notes hidden by a close message (Alt+F4, taskbar Close), with when. If QwenPad itself exits within a few
+        // seconds (taskbar "Close all windows" closes every note and then the app), those notes weren't meant to be
+        // hidden, so they're saved as visible and come back on the next launch.
+        readonly Dictionary<StickyNote, DateTime> closeHidden = new Dictionary<StickyNote, DateTime>();
+        DateTime exitSince = DateTime.MaxValue;
+
+        internal void HiddenByClose(StickyNote note) { closeHidden[note] = DateTime.Now; }
+
+        /// <summary>QwenPad is about to close (before any save prompt).</summary>
+        public void ExitStarting()
+        {
+            if (exitSince == DateTime.MaxValue) exitSince = DateTime.Now.AddSeconds(-5);
+            ReopenClosedDuringExit(true);
+        }
+
+        /// <summary>The user cancelled closing QwenPad: notes closed meanwhile come back too.</summary>
+        public void ExitCanceled()
+        {
+            ReopenClosedDuringExit(true);
+            exitSince = DateTime.MaxValue;
+        }
+
+        void ReopenClosedDuringExit(bool show)
+        {
+            foreach (var kv in closeHidden)
+            {
+                var n = kv.Key;
+                if (kv.Value < exitSince || n.WantsVisible || !notes.Contains(n)) continue;
+                n.WantsVisible = true;
+                if (show && !n.IsDisposed) n.Show();
+                MarkDirty(n);
+            }
+            if (!show) closeHidden.Clear();
+        }
+
         public void ShowAll() { foreach (var n in notes) { n.WantsVisible = true; n.Show(); MarkDirty(n); } }
         public void HideAll() { foreach (var n in notes) HideNote(n); }
         public void PinAll(bool pinned) { foreach (var n in notes) n.SetPinned(pinned); }
@@ -2223,6 +2265,7 @@ namespace QwenPad
 
         public void Dispose()
         {
+            if (exitSince != DateTime.MaxValue) ReopenClosedDuringExit(false);
             Flush();
             if (listForm != null && !listForm.IsDisposed) listForm.Close();
             foreach (var n in notes.ToArray()) { n.AllowClose = true; n.Close(); }

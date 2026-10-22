@@ -1731,7 +1731,8 @@ namespace QwenPad
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            if (!ConfirmDiscard()) { e.Cancel = true; return; }
+            notes.ExitStarting();
+            if (!ConfirmDiscard()) { e.Cancel = true; notes.ExitCanceled(); return; }
             CancelGeneration();
             settings.Maximized = WindowState == FormWindowState.Maximized;
             settings.Bounds = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;

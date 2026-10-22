@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.1] - 2026-10-22
+
+### Fixed
+- **Notes no longer go missing when QwenPad is closed from outside.** If Windows or another program closes the note windows as part of closing QwenPad (for example the taskbar's *Close all windows*, or an updater), those notes used to be saved as hidden and seemed to disappear on the next launch. They now stay visible. A note you hide yourself still stays hidden.
+- A bare close message sent to a note window now hides the note instead of destroying the window while QwenPad keeps running.
+
 ## [1.8.0] - 2026-10-22
 
 ### Added
