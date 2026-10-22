@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.2] - 2026-10-22
+
+### Fixed
+- **Ctrl+N (and the + button) in a sticky note** now always gives you a visible new note. It takes on the current note's pin, color or design and opacity, so a new note made from a pinned note no longer opens hidden behind it. It goes to a free spot beside the note (right, left, below or above) instead of on top of other notes, and opens with the cursor ready.
 ## [1.7.1] - 2026-10-22
 
 ### Changed

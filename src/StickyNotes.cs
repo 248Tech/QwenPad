@@ -120,7 +120,7 @@ namespace QwenPad
             header.Controls.Add(btnPin);
             header.Controls.Add(HeaderButton("⋯", "Menu", DockStyle.Right, (s, e) => menu.Show((Control)s, 0, ((Control)s).Height)));
             header.Controls.Add(HeaderButton("✕", "Hide note (Ctrl+W)", DockStyle.Right, delegate { mgr.HideNote(this); }));
-            header.Controls.Add(HeaderButton("+", "New note (Ctrl+N)", DockStyle.Left, delegate { mgr.New("", Bounds); }));
+            header.Controls.Add(HeaderButton("+", "New note (Ctrl+N)", DockStyle.Left, delegate { mgr.New("", Bounds, like: this); }));
             lblStatus.Dock = DockStyle.Fill;
             lblStatus.TextAlign = ContentAlignment.MiddleLeft;
             lblStatus.Font = new Font("Segoe UI", 9f);
@@ -1280,7 +1280,7 @@ namespace QwenPad
                 case Keys.Shift | Keys.F10:
                     menu.Show(this, new Point(Width - menu.PreferredSize.Width - 4, header.Height));   // keyboard access to the ⋯ menu
                     return true;
-                case Keys.Control | Keys.N: mgr.New("", Bounds); return true;
+                case Keys.Control | Keys.N: mgr.New("", Bounds, like: this); return true;
                 case Keys.Control | Keys.D: if (!Busy) mgr.Delete(this); return true;
                 case Keys.Control | Keys.P: SetPinned(!TopMost); return true;
                 case Keys.Control | Keys.W: mgr.HideNote(this); return true;
@@ -1693,33 +1693,80 @@ namespace QwenPad
         }
 
         /// <summary>Creates a note next to the given window bounds.</summary>
-        public StickyNote New(string text, Rectangle near, string title = "", int color = 0)
+        /// <param name="like">When created from a note (Ctrl+N, +): copy its color or design, opacity and pin, and place it beside that note.</param>
+        public StickyNote New(string text, Rectangle near, string title = "", int color = 0, StickyNote like = null)
         {
             if (!Available) return null;
             string id = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture);
             while (File.Exists(Path.Combine(Dir, id + ".txt"))) id += "x";
             var note = new StickyNote(this, id);
-            var area = Screen.FromRectangle(near).WorkingArea;
-            int x = near.Right + 12, y = near.Top;
-            if (near.Width > note.Width * 2)
+            note.Location = FreeSpot(near, note.Size, near.Width > note.Width * 2);
+            if (like != null)
             {
-                // Next to the main window: cascade inside its top-right corner.
-                int step = (CountVisible() % 8) * 26;
-                x = near.Right - note.Width - 30 - step;
-                y = near.Top + 80 + step;
+                note.SetColor(like.ColorIndex);
+                if (like.Design > 0) note.SetDesign(like.Design);
+                if (like.OpacityPercent < 100) note.SetOpacity(like.OpacityPercent);
             }
-            else if (x + note.Width > area.Right) x = near.Left - note.Width - 12;
-            note.Location = new Point(Math.Max(area.Left, Math.Min(x, area.Right - note.Width)), Math.Max(area.Top, Math.Min(y, area.Bottom - note.Height)));
-            if (color != 0) note.SetColor(color);
+            else if (color != 0) note.SetColor(color);
             note.LoadContent(title ?? "", Crlf(text ?? ""), false, DateTime.Now, DateTime.Now);
             if (!string.IsNullOrEmpty(title)) note.AutoTitleTried = true;
             notes.Add(note);
             note.Show();
+            // A note made from a pinned note is pinned too; otherwise it would open hidden behind it.
+            if (like != null && like.TopMost) note.SetPinned(true);
+            else note.BringToFront();
             note.Activate();
+            note.Body.Focus();
             note.Body.Select(note.Body.TextLength, 0);
             if (note.Body.TextLength > 0) note.ScheduleAutoTitle();
             MarkDirty(note);
             return note;
+        }
+
+        /// <summary>
+        /// Picks where a new note goes. Beside a note: right, left, below or above it, whichever fits on screen without
+        /// covering another note. Next to the main window: its top-right corner. Either way it never lands exactly on
+        /// top of another note (it cascades instead).
+        /// </summary>
+        Point FreeSpot(Rectangle near, Size size, bool nearMainWindow)
+        {
+            var area = Screen.FromRectangle(near).WorkingArea;
+            Func<Point, Point> clamp = p => new Point(Math.Max(area.Left, Math.Min(p.X, area.Right - size.Width)), Math.Max(area.Top, Math.Min(p.Y, area.Bottom - size.Height)));
+            Func<Point, bool> fits = p => area.Contains(new Rectangle(p, size));
+            Func<Point, bool> clear = p =>
+            {
+                var r = new Rectangle(p, size);
+                foreach (var n in notes)
+                {
+                    if (!n.Visible) continue;
+                    var hit = Rectangle.Intersect(r, n.Bounds);
+                    if (hit.Width * hit.Height > size.Width * size.Height / 5) return false;   // covers more than a fifth
+                }
+                return true;
+            };
+            Func<Point, bool> taken = p =>
+            {
+                foreach (var n in notes) if (n.Visible && Math.Abs(n.Left - p.X) < 10 && Math.Abs(n.Top - p.Y) < 10) return true;
+                return false;
+            };
+
+            Point start;
+            if (nearMainWindow) start = new Point(near.Right - size.Width - 30, near.Top + 80);
+            else
+            {
+                var candidates = new[]
+                {
+                    new Point(near.Right + 12, near.Top), new Point(near.Left - size.Width - 12, near.Top),
+                    new Point(near.Left, near.Bottom + 12), new Point(near.Left, near.Top - size.Height - 12)
+                };
+                foreach (var c in candidates) if (fits(c) && clear(c)) return c;
+                foreach (var c in candidates) if (fits(c)) { start = c; goto cascade; }
+                start = new Point(near.Left + 28, near.Top + 28);
+            }
+        cascade:
+            var pos = clamp(start);
+            for (int i = 0; i < 12 && taken(pos); i++) pos = clamp(new Point(pos.X + (nearMainWindow ? -26 : 28), pos.Y + 28));
+            return pos;
         }
 
         public void ShowNote(StickyNote note)
