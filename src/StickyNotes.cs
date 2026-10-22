@@ -1481,6 +1481,10 @@ namespace QwenPad
                 // A sizable frame is what makes Windows honor the resize edges reported by WM_NCHITTEST.
                 // WM_NCCALCSIZE below gives it zero thickness, so nothing about the note's look changes.
                 cp.Style |= WS_THICKFRAME;
+                // Composite children over a buffered background. A design shows through the transparent text box
+                // (WS_EX_TRANSPARENT); without compositing, the parent never repaints under it, so typing on a faded
+                // or plain design background leaves stale glyphs behind. Notes are small, so the cost is negligible.
+                cp.ExStyle |= WS_EX_COMPOSITED;
                 return cp;
             }
         }
@@ -1601,6 +1605,7 @@ namespace QwenPad
         const int HTTRANSPARENT = -1, HTLEFT = 10, HTRIGHT = 11, HTTOP = 12, HTTOPLEFT = 13, HTTOPRIGHT = 14;
         const int HTBOTTOM = 15, HTBOTTOMLEFT = 16, HTBOTTOMRIGHT = 17;
         const int CS_DROPSHADOW = 0x20000, WS_MINIMIZEBOX = 0x20000, WS_SYSMENU = 0x80000, WS_THICKFRAME = 0x40000;
+        const int WS_EX_COMPOSITED = 0x02000000;
         const int WM_NCCALCSIZE = 0x83, WM_NCPAINT = 0x85, WM_NCACTIVATE = 0x86, WM_SETTEXT = 0x0C, WM_SETICON = 0x80;
         const int GWL_STYLE = -16, GWL_EXSTYLE = -20, WS_VISIBLE = 0x10000000, WS_EX_TOPMOST = 0x8;
         const int EM_GETCHARFORMAT = 0x43A, EM_SETCHARFORMAT = 0x444, SCF_SELECTION = 1;

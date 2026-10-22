@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.11.1] - 2026-10-22
+
+### Fixed
+- **Typing in a themed sticky note no longer smears or ghosts the text**, especially with **Background Art** turned down low (or on a plain-paper design). Note windows now composite their children, so the area behind the transparent text box repaints cleanly as you type.
+
 ## [1.11.0] - 2026-10-22
 
 ### Added
