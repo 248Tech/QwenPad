@@ -261,6 +261,8 @@ namespace QwenPad
                 new ToolStripSeparator(),
                 Item("Show &All Notes", Keys.None, delegate { notes.ShowAll(); }),
                 Item("&Hide All Notes", Keys.None, delegate { notes.HideAll(); }),
+                Item("📌 &Pin All Notes on Top", Keys.None, delegate { notes.ShowAll(); notes.PinAll(true); }),
+                Item("&Unpin All Notes", Keys.None, delegate { notes.PinAll(false); }),
                 new ToolStripSeparator()
             });
             notesStaticCount = miNotes.DropDownItems.Count;
@@ -1254,6 +1256,8 @@ namespace QwenPad
             items[1].Enabled = available && editor.SelectionLength > 0;
             items[4].Enabled = available && notes.CountVisible() < notes.Notes.Count;
             items[5].Enabled = available && notes.CountVisible() > 0;
+            items[6].Enabled = available && notes.Notes.Count > 0 && notes.CountPinned() < notes.Notes.Count;
+            items[7].Enabled = available && notes.CountPinned() > 0;
             if (!available)
             {
                 items.Add(new ToolStripMenuItem("Notes are open in another QwenPad window") { Enabled = false });

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0] - 2026-10-22
+
+### Added
+- **📌 Pin notes on top of all windows** with a pin button in each note's header (highlighted while pinned), **Ctrl+P** inside a note, or **Notes > Pin All Notes on Top / Unpin All Notes**. Pinned notes stay above every other app and are restored pinned on the next launch.
+
+### Fixed
+- Pinning a note at runtime (the old ⋯ > Always on Top) often didn't actually keep it on top. Windows declined the first request while moving the note's own tooltip windows; notes now apply and verify the setting themselves.
+
 ## [1.3.0] - 2026-10-21
 
 ### Added

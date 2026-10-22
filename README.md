@@ -72,7 +72,8 @@ With nothing selected, rewrite actions apply to the whole document. Every AI edi
 - Each note has a **title**, a **date** (hover for created/edited times), and a **handwritten font**.
 - Each note is its own window with a taskbar button grouped under QwenPad (minimize, restore, Alt+Tab).
 - Notes **auto-expand** to fit their text (scrollbar only when they reach the screen edge) and can be resized from any edge or the corner grip.
-- Six colors, always-on-top, drag to move, and **Insert into Document**.
+- **📌 Pin** a note on top of all windows (pin button, Ctrl+P, or Notes > Pin All Notes on Top).
+- Six colors, drag to move, and **Insert into Document**.
 - Saved automatically as plain `.txt` files in `notes\` and restored on the next launch.
 
 ### 📝 Everything you expect from Notepad

@@ -48,6 +48,8 @@ namespace QwenPad
         readonly ContextMenuStrip menu = new ContextMenuStrip();
         readonly ToolStripMenuItem miTop;
         readonly List<Label> headerButtons = new List<Label>();
+        readonly ToolTip headerTip = new ToolTip();
+        readonly Label btnPin;
         internal int ColorIndex { get; private set; }
         internal bool Busy { get; private set; }
         /// <summary>Whether the user wants this note shown. Saved instead of Form.Visible, which can drift from the real window.</summary>
@@ -75,6 +77,8 @@ namespace QwenPad
             header.Height = Font.Height + 12;
             header.Controls.Add(lblStatus);
             // Later-added docked controls sit further out, so ✕ ends up at the far right.
+            btnPin = HeaderButton("📌", "", DockStyle.Right, delegate { SetPinned(!TopMost); });
+            header.Controls.Add(btnPin);
             header.Controls.Add(HeaderButton("⋯", "Menu", DockStyle.Right, (s, e) => menu.Show((Control)s, 0, ((Control)s).Height)));
             header.Controls.Add(HeaderButton("✕", "Hide note (Ctrl+W)", DockStyle.Right, delegate { mgr.HideNote(this); }));
             header.Controls.Add(HeaderButton("+", "New note (Ctrl+N)", DockStyle.Left, delegate { mgr.New("", Bounds); }));
@@ -134,7 +138,7 @@ namespace QwenPad
                 int c = i;
                 menu.Items.Add(new ToolStripMenuItem(ColorNames[i], Swatch(i), delegate { SetColor(c); mgr.MarkDirty(this); }));
             }
-            miTop = new ToolStripMenuItem("Always on &Top", null, delegate { TopMost = !TopMost; mgr.MarkDirty(this); });
+            miTop = new ToolStripMenuItem("&Pin on Top of All Windows", null, delegate { SetPinned(!TopMost); }) { ShortcutKeyDisplayString = "Ctrl+P" };
             menu.Items.AddRange(new ToolStripItem[]
             {
                 new ToolStripSeparator(),
@@ -155,7 +159,8 @@ namespace QwenPad
 
             Move += delegate { mgr.MarkDirty(this); };
             Resize += delegate { mgr.MarkDirty(this); Invalidate(); };
-            Shown += delegate { AutoFit(); };
+            Shown += delegate { AutoFit(); ApplyPin(); };
+            VisibleChanged += delegate { if (Visible) ApplyPin(); };
             ResizeBegin += delegate { sizeAtResizeBegin = Size; };
             ResizeEnd += delegate
             {
@@ -172,6 +177,63 @@ namespace QwenPad
                     BeginInvoke((Action)(() => { if (WantsVisible && !AllowClose && !IsDisposed && !Visible) Show(); }));
             };
             SetColor(0);
+        }
+
+        /// <summary>Pins the note above all other windows (Windows "topmost"), or unpins it.</summary>
+        internal void SetPinned(bool pinned)
+        {
+            TopMost = pinned;
+            UpdatePinButton();   // before ApplyPin: updating the tooltip can reshuffle the note's z-order
+            ApplyPin();
+            mgr.MarkDirty(this);
+            // Re-check a few times over the next second, in case anything moved the note back.
+            pinChecks = 3;
+            pinTimer.Start();
+        }
+
+        int pinChecks;
+        System.Windows.Forms.Timer pinTimerField;
+        System.Windows.Forms.Timer pinTimer
+        {
+            get
+            {
+                if (pinTimerField == null)
+                {
+                    pinTimerField = new System.Windows.Forms.Timer { Interval = 300 };
+                    pinTimerField.Tick += delegate
+                    {
+                        ApplyPin();
+                        if (--pinChecks <= 0) pinTimerField.Stop();
+                    };
+                }
+                return pinTimerField;
+            }
+        }
+
+        /// <summary>
+        /// Applies the topmost flag directly. WinForms' TopMost setter alone doesn't reliably reach these
+        /// custom-frame windows, so set the z-order ourselves (without activating the note).
+        /// </summary>
+        void ApplyPin()
+        {
+            if (!IsHandleCreated) return;
+            // The first topmost request on a note often only moves its owned helper windows (tooltip, IME)
+            // into the topmost band and leaves the note itself below them, so check and retry.
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                SetWindowPos(Handle, TopMost ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+                if (((GetWindowLong(Handle, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0) == TopMost) break;
+            }
+        }
+
+        /// <summary>Shows the pin button as pressed while the note is pinned.</summary>
+        void UpdatePinButton()
+        {
+            if (btnPin == null) return;
+            btnPin.BackColor = !TopMost ? Color.Transparent
+                : Theme.Dark ? Color.FromArgb(70, 255, 255, 255) : Color.FromArgb(55, 0, 0, 0);
+            headerTip.SetToolTip(btnPin, TopMost ? "Pinned on top of all windows. Click to unpin (Ctrl+P)"
+                                                 : "Pin on top of all windows (Ctrl+P)");
         }
 
         /// <summary>The note's own title (may be empty).</summary>
@@ -289,6 +351,7 @@ namespace QwenPad
             lblDate.ForeColor = dark ? Color.FromArgb(160, 160, 160) : Color.FromArgb(110, 110, 110);
             lblStatus.ForeColor = dark ? Color.FromArgb(175, 175, 175) : Color.FromArgb(90, 90, 90);
             foreach (var b in headerButtons) b.ForeColor = dark ? Color.FromArgb(215, 215, 215) : Color.FromArgb(60, 60, 60);
+            UpdatePinButton();
             Invalidate();
         }
 
@@ -382,6 +445,7 @@ namespace QwenPad
             if (v.TryGetValue("x", out x) && v.TryGetValue("y", out y)) Location = new Point(x, y);
             if (v.TryGetValue("color", out c)) SetColor(c);
             if (v.TryGetValue("top", out top)) TopMost = top == 1;
+            UpdatePinButton();
             if (v.TryGetValue("visible", out vis)) WantsVisible = vis == 1;
             if (!OnScreen(Bounds)) Location = new Point(Screen.PrimaryScreen.WorkingArea.Right - Width - 40, Screen.PrimaryScreen.WorkingArea.Top + 40);
         }
@@ -419,10 +483,10 @@ namespace QwenPad
                 Text = glyph, Dock = dock, Width = header.Height, TextAlign = ContentAlignment.MiddleCenter,
                 Font = new Font("Segoe UI Symbol", 10f), ForeColor = Color.FromArgb(60, 60, 60), Cursor = Cursors.Hand
             };
-            new ToolTip().SetToolTip(b, tip);
+            headerTip.SetToolTip(b, tip);
             headerButtons.Add(b);
             b.MouseEnter += delegate { b.BackColor = Theme.Dark ? Color.FromArgb(45, 255, 255, 255) : Color.FromArgb(40, 0, 0, 0); };
-            b.MouseLeave += delegate { b.BackColor = Color.Transparent; };
+            b.MouseLeave += delegate { b.BackColor = Color.Transparent; UpdatePinButton(); };
             b.Click += onClick;
             return b;
         }
@@ -451,6 +515,9 @@ namespace QwenPad
                     return true;
                 case Keys.Control | Keys.D:
                     if (!Busy) mgr.Delete(this);
+                    return true;
+                case Keys.Control | Keys.P:
+                    SetPinned(!TopMost);
                     return true;
                 case Keys.Control | Keys.W:
                     mgr.HideNote(this);
@@ -595,8 +662,12 @@ namespace QwenPad
         const int HTBOTTOM = 15, HTBOTTOMLEFT = 16, HTBOTTOMRIGHT = 17;
         const int CS_DROPSHADOW = 0x20000, WS_MINIMIZEBOX = 0x20000, WS_SYSMENU = 0x80000, WS_THICKFRAME = 0x40000;
         const int WM_NCCALCSIZE = 0x83, WM_NCPAINT = 0x85, WM_NCACTIVATE = 0x86, WM_SETTEXT = 0x0C, WM_SETICON = 0x80;
-        const int GWL_STYLE = -16, WS_VISIBLE = 0x10000000;
+        const int GWL_STYLE = -16, GWL_EXSTYLE = -20, WS_VISIBLE = 0x10000000, WS_EX_TOPMOST = 0x8;
 
+        static readonly IntPtr HWND_TOPMOST = (IntPtr)(-1), HWND_NOTOPMOST = (IntPtr)(-2);
+        const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10;
+
+        [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
         [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr hWnd, int index);
         [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr hWnd, int index, int value);
         [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
@@ -756,6 +827,8 @@ namespace QwenPad
 
         public void ShowAll() { foreach (var n in notes) { n.WantsVisible = true; n.Show(); MarkDirty(n); } }
         public void HideAll() { foreach (var n in notes) HideNote(n); }
+        public void PinAll(bool pinned) { foreach (var n in notes) n.SetPinned(pinned); }
+        public int CountPinned() { int c = 0; foreach (var n in notes) if (n.TopMost) c++; return c; }
         public int CountVisible() { int c = 0; foreach (var n in notes) if (n.WantsVisible) c++; return c; }
 
         public void Delete(StickyNote note)
