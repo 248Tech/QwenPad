@@ -627,6 +627,11 @@ namespace QwenPad
                 // Designs paint the whole window; the panels become see-through and take the design's colors.
                 foreach (Control c in new Control[] { header, titleRow, lblDate, lblStatus, formatBar, drawBar, gallery, sketch })
                     c.BackColor = Color.Transparent;
+                // The text box stays visually transparent (WS_EX_TRANSPARENT), but a transient erase while typing can
+                // briefly flash its BackColor. Match it (and the form) to the design's paper so any such frame blends in,
+                // instead of the bright plain-note color it would otherwise keep.
+                Color paper = NoteDesigns.PaperOf(Design);
+                BackColor = Body.BackColor = paper;
                 Body.ForeColor = txtTitle.ForeColor = sketch.ForeColor = st.Text;
                 lblDate.ForeColor = lblStatus.ForeColor = txtTitle.PlaceholderColor = st.Muted;
                 foreach (var b in headerButtons) b.ForeColor = st.HeaderFore;

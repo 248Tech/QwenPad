@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.11.2] - 2026-10-22
+
+### Fixed
+- **Occasional color flash while typing in a themed note.** Under a design, the text box kept the bright plain-note color as its background; a transient repaint could flash it behind the text. It now uses the design's own paper color, so any such frame blends in. (Art still shows through the text as before.)
+
 ## [1.11.1] - 2026-10-22
 
 ### Fixed
