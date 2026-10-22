@@ -53,6 +53,8 @@ namespace QwenPad
 
         /// <summary>When false (the default), left-clicking an image doesn't open it; right-click > Open still does.</summary>
         internal static bool ClickableImages;
+        /// <summary>Set by MainForm: opens the Image Studio for a note. The string is a reference image path to edit, or null to generate.</summary>
+        internal static Action<StickyNote, string> ImageStudioHook;
 
         // Seasonal designs (see NoteDesigns): 0 = plain color.
         internal int Design { get; private set; }
@@ -287,6 +289,7 @@ namespace QwenPad
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("✦ &Ask Qwen...", null, delegate { mgr.Ask(this); }) { ShortcutKeyDisplayString = "Ctrl+K" },
                 new ToolStripMenuItem("Add &Image or GIF...", null, delegate { ChooseImage(); }),
+                new ToolStripMenuItem("🖼 &Generate Image...", null, delegate { if (ImageStudioHook != null) ImageStudioHook(this, null); }),
                 new ToolStripMenuItem("✏ &Draw (pen, brush, eraser)", null, delegate { SetDrawMode(!drawMode); }),
                 new ToolStripSeparator(), miTop, miOpacity, miArt, miLayer,
                 new ToolStripSeparator(),
@@ -1149,6 +1152,7 @@ namespace QwenPad
             size.DropDownItems.Add("&Full Width", null, delegate { SetImageWidth(pb, 0); });
             cm.Items.Add(size);
             cm.Items.Add(new ToolStripSeparator());
+            cm.Items.Add("✦ &Edit with Qwen...", null, delegate { if (ImageStudioHook != null) ImageStudioHook(this, Path.Combine(ImageDir, (string)pb.Tag)); });
             cm.Items.Add("&Remove from Note", null, delegate { RemoveImage(pb); });
             pb.ContextMenuStrip = cm;
             gallery.Controls.Add(pb);

@@ -7,6 +7,7 @@ QwenPad itself is MIT-licensed (see [LICENSE](LICENSE)). The release package bun
 | Component | Version | License | Source |
 |---|---|---|---|
 | llama.cpp (`llama-server.exe`, `ggml*.dll`, `llama.dll`) | b11756 | MIT | https://github.com/ggml-org/llama.cpp |
+| stable-diffusion.cpp (`runtime\sd\sd-server.exe`, `stable-diffusion.dll`, `ggml*.dll`) | master-990-530fa39 | MIT | https://github.com/leejet/stable-diffusion.cpp |
 | NVIDIA CUDA runtime (`cudart64_12.dll`, `cublas64_12.dll`, `cublasLt64_12.dll`) | 12.4 | NVIDIA CUDA Toolkit EULA (redistributable components) | https://docs.nvidia.com/cuda/eula/ |
 | Microsoft Visual C++ runtime (`vcruntime140.dll`, `vcruntime140_1.dll`, `msvcp140.dll`) | 14.x | Microsoft Visual C++ Redistributable license (app-local deployment) | https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files |
 
@@ -16,8 +17,19 @@ QwenPad itself is MIT-licensed (see [LICENSE](LICENSE)). The release package bun
 |---|---|---|
 | Qwen3.5 9B / 4B (GGUF by unsloth) | Apache-2.0 | https://huggingface.co/unsloth/Qwen3.5-9B-GGUF · https://huggingface.co/unsloth/Qwen3.5-4B-GGUF |
 | Huihui Qwen3.5 9B Abliterated (GGUF by mradermacher) | Apache-2.0 | https://huggingface.co/mradermacher/Huihui-Qwen3.5-9B-abliterated-GGUF |
+| **Qwen-Image-2.1 Turbo** denoiser (GGUF by AtomicChat) | **Qwen Research License** (non-commercial) | https://huggingface.co/AtomicChat/Qwen-Image-2.1-Turbo-GGUF |
+| Qwen3-VL-8B text encoder — uncensored (GGUF by AtomicChat) | Apache-2.0 | https://huggingface.co/AtomicChat/Qwen-Image-2.1-Turbo-Uncensored-GGUF |
+| Qwen3-VL-8B text encoder — standard (GGUF by Qwen) | Apache-2.0 | https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF |
+| Qwen-Image-2.1 VAE (by Comfy-Org) | Qwen Research License (non-commercial) | https://huggingface.co/Comfy-Org/Qwen-Image-2.1 |
+
+> **Image-model licensing.** The Qwen-Image-2.1 weights are released under the **Qwen Research License Agreement**, which permits
+> **research and evaluation use only**. Commercial use requires a separate license from Alibaba (model-business@notice.qwencloud.com).
+> QwenPad does not redistribute these weights; it downloads them, at your request, directly from Hugging Face, and the download
+> dialog shows this notice. The "Built with Qwen" attribution applies if you distribute an AI model built from its outputs.
 
 Qwen is a trademark of Alibaba Cloud. QwenPad is an independent project, not affiliated with or endorsed by Alibaba Cloud, NVIDIA or Microsoft.
+
+stable-diffusion.cpp is MIT-licensed, same text as llama.cpp below (© 2023-2026 leejet and contributors).
 
 ## llama.cpp license
 

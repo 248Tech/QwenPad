@@ -19,6 +19,16 @@ namespace QwenPad
         public string ServerArgs = "-c 16384 --reasoning-budget 0";
         public bool AutoStartServer = true;
         public int MaxTokens = 2048;
+
+        // Local image model (Qwen-Image-2.1 through stable-diffusion.cpp's sd-server)
+        public string ImageServerExe = @"runtime\sd\sd-server.exe";
+        public string ImageServerUrl = "http://127.0.0.1:8766";
+        public string ImageModelDir = @"models\image";
+        public string ImageEncoder = "uncensored";   // uncensored | standard (see ModelDownloadDialog.ImageOptions)
+        public string ImageServerArgs = "--offload-to-cpu --vae-tiling";
+        public int ImageIdleMinutes = 5;              // unload the image model after this long without a job
+        public string ImageSize = "768x768";
+        public string ImageOutputDir = "images";
         public double Temperature = 0.7;
 
         // Editor
@@ -84,6 +94,14 @@ namespace QwenPad
                         case "AutoStartServer": s.AutoStartServer = v == "1" || v.ToLowerInvariant() == "true"; break;
                         case "MaxTokens": if (int.TryParse(v, NumberStyles.Integer, Inv, out n) && n > 0) s.MaxTokens = n; break;
                         case "Temperature": if (double.TryParse(v, NumberStyles.Float, Inv, out d)) s.Temperature = d; break;
+                        case "ImageServerExe": s.ImageServerExe = v; break;
+                        case "ImageServerUrl": s.ImageServerUrl = v; break;
+                        case "ImageModelDir": s.ImageModelDir = v; break;
+                        case "ImageEncoder": s.ImageEncoder = v.ToLowerInvariant(); break;
+                        case "ImageServerArgs": s.ImageServerArgs = v; break;
+                        case "ImageIdleMinutes": if (int.TryParse(v, NumberStyles.Integer, Inv, out n) && n > 0) s.ImageIdleMinutes = n; break;
+                        case "ImageSize": s.ImageSize = v; break;
+                        case "ImageOutputDir": s.ImageOutputDir = v; break;
                         case "FontName": s.FontName = v; break;
                         case "FontSize": if (float.TryParse(v, NumberStyles.Float, Inv, out f) && f > 1) s.FontSize = f; break;
                         case "FontStyle": if (int.TryParse(v, NumberStyles.Integer, Inv, out n)) s.FontStyle = (FontStyle)n; break;
@@ -120,6 +138,15 @@ namespace QwenPad
             sb.AppendLine("AutoStartServer=" + (AutoStartServer ? "1" : "0"));
             sb.AppendLine("MaxTokens=" + MaxTokens.ToString(Inv));
             sb.AppendLine("Temperature=" + Temperature.ToString(Inv));
+            sb.AppendLine("[Images]");
+            sb.AppendLine("ImageServerExe=" + ImageServerExe);
+            sb.AppendLine("ImageServerUrl=" + ImageServerUrl);
+            sb.AppendLine("ImageModelDir=" + ImageModelDir);
+            sb.AppendLine("ImageEncoder=" + ImageEncoder);
+            sb.AppendLine("ImageServerArgs=" + ImageServerArgs);
+            sb.AppendLine("ImageIdleMinutes=" + ImageIdleMinutes.ToString(Inv));
+            sb.AppendLine("ImageSize=" + ImageSize);
+            sb.AppendLine("ImageOutputDir=" + ImageOutputDir);
             sb.AppendLine("[Editor]");
             sb.AppendLine("FontName=" + FontName);
             sb.AppendLine("FontSize=" + FontSize.ToString(Inv));

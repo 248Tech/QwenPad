@@ -129,7 +129,7 @@ namespace QwenPad
             if (req != null) try { req.Abort(); } catch { }
         }
 
-        static string ReadError(WebResponse response, JavaScriptSerializer ser)
+        internal static string ReadError(WebResponse response, JavaScriptSerializer ser)
         {
             try
             {
@@ -146,7 +146,7 @@ namespace QwenPad
             catch { return "Server error"; }
         }
 
-        static string ErrorMessage(object err)
+        internal static string ErrorMessage(object err)
         {
             var d = err as Dictionary<string, object>;
             object msg;

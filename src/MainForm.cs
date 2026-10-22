@@ -44,6 +44,13 @@ namespace QwenPad
         readonly System.Windows.Forms.Timer uiTimer = new System.Windows.Forms.Timer { Interval = 100 };
         readonly System.Windows.Forms.Timer healthTimer = new System.Windows.Forms.Timer { Interval = 2000 };
         readonly ServerManager server = new ServerManager();
+        readonly ServerManager imageServer = new ServerManager("sd-server.log", "sd-server");
+        ImageClient imageClient;
+        string imageState = "offline";        // offline | loading | ready
+        bool textWasRunning;                  // the text model was running before images took the GPU
+        DateTime imageIdleSince = DateTime.MaxValue;
+        readonly System.Windows.Forms.Timer imageIdleTimer = new System.Windows.Forms.Timer { Interval = 20000 };
+        ImageStudioForm imageStudio;
         readonly LlmClient llm;
         readonly LlmClient noteLlm;   // separate client so a note summary doesn't share the editor's abort handle
         readonly LlmClient titleLlm;  // background titles and email tasks, so they never cancel a note's Ask
@@ -93,9 +100,13 @@ namespace QwenPad
             llm = new LlmClient(settings);
             noteLlm = new LlmClient(settings);
             titleLlm = new LlmClient(settings);
+            imageClient = new ImageClient(settings);
             notes = new NoteManager(InsertFromNote, AskInNote, AutoTitleNote);
             Theme.SetMode(settings.Theme);
             StickyNote.ClickableImages = settings.ClickableImages;
+            // Notes open the Image Studio through this hook (null reference = generate; a path = edit that image).
+            StickyNote.ImageStudioHook = (note, refPath) => OpenImageStudio(note, null, refPath);
+            imageIdleTimer.Tick += delegate { ImageIdleCheck(); };
             Text = AppName;
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
             Size = new Size(900, 640);
@@ -312,10 +323,20 @@ namespace QwenPad
             var miModel = new ToolStripMenuItem("&Model");
             miModel.DropDownItems.Add("(none)");   // placeholder so the submenu arrow shows
             miModel.DropDownOpening += delegate { RefreshModelMenu(miModel); };
+            var miImageModel = new ToolStripMenuItem("&Image Model");
+            miImageModel.DropDownItems.AddRange(new ToolStripItem[]
+            {
+                Item("&Download Image Model...", Keys.None, delegate { EnsureImageModel(this); }),
+                Item("&Stop Image Engine", Keys.None, delegate { StopImageEngine(true); ShowNote("Image engine stopped."); }),
+                Item("Show Image &Log", Keys.None, delegate { ShowImageLog(); })
+            });
             qwen.DropDownItems.AddRange(new ToolStripItem[]
             {
-                new ToolStripSeparator(), miStop, new ToolStripSeparator(), miModel, miServer,
+                new ToolStripSeparator(),
+                Item("🖼 &Image Studio...", Keys.Control | Keys.Shift | Keys.J, delegate { OpenImageStudio(null, null, null); }),
+                miStop, new ToolStripSeparator(), miModel, miServer,
                 Item("Show Server &Log", Keys.None, delegate { ShowServerLog(); }),
+                new ToolStripSeparator(), miImageModel,
                 Item("S&ettings...", Keys.None, delegate { ShowSettings(); })
             });
             qwen.DropDownOpening += delegate { UpdateServerMenu(); };
@@ -389,7 +410,8 @@ namespace QwenPad
                 rewrite,
                 add("Su&mmarize", Keys.None, delegate { Rewrite("Summarize the text in a short paragraph.", true); }),
                 add("&Key Points", Keys.None, delegate { Rewrite("List the key points of the text as a short bulleted list using \"- \" bullets.", true); }),
-                add("✦ Tasks From &Email", Keys.None, delegate { TasksFromEmail(); })
+                add("✦ Tasks From &Email", Keys.None, delegate { TasksFromEmail(); }),
+                add("🖼 &Generate Image from Selection...", Keys.None, delegate { OpenImageStudio(null, editor.SelectedText, null); })
             });
         }
 
@@ -1680,6 +1702,12 @@ namespace QwenPad
             if (generating) return;
             if (note != null && DateTime.Now <= noteUntil) { lblAi.Text = note; return; }
             note = null;
+            if (imageServer.Running)
+            {
+                lblAi.Text = imageState == "ready" ? "🖼 Image model ready" : "⏳ Loading the image model…";
+                lblAi.ToolTipText = settings.ImageServerUrl;
+                return;
+            }
             switch (serverState)
             {
                 case "ready": lblAi.Text = "✦ " + ModelName + " ready · Ctrl+K ask · Ctrl+Enter continue"; break;
@@ -1695,11 +1723,199 @@ namespace QwenPad
 
         void ShowServerLog()
         {
-            if (File.Exists(ServerManager.LogPath))
-                Process.Start(Application.ExecutablePath, "\"" + ServerManager.LogPath + "\"");
+            if (File.Exists(server.LogPath))
+                Process.Start(Application.ExecutablePath, "\"" + server.LogPath + "\"");
             else
                 MessageBox.Show(this, "No server log yet. The log is written when QwenPad starts the local model.", AppName);
         }
+
+        #region Image engine (stable-diffusion.cpp sd-server)
+
+        string ImageModelDir { get { return Settings.Resolve(settings.ImageModelDir); } }
+
+        ModelOption ImageBundle()
+        {
+            foreach (var o in ModelDownloadDialog.ImageOptions) if (o.Key == settings.ImageEncoder) return o;
+            return ModelDownloadDialog.ImageOptions[0];
+        }
+
+        bool ImageModelInstalled() { return ImageBundle().InstalledIn(ImageModelDir); }
+
+        /// <summary>Offers the image-model download if it isn't installed; true when it's present afterwards.</summary>
+        bool EnsureImageModel(IWin32Window owner)
+        {
+            if (ImageModelInstalled()) return true;
+            string note = "Downloaded once from Hugging Face (about 11 GB). The Qwen-Image-2.1 weights are under the Qwen Research License: " +
+                          "personal, research and evaluation use only. Commercial use needs a separate license from Alibaba.";
+            using (var dlg = new ModelDownloadDialog("Download Image Model",
+                "Image generation needs the Qwen-Image model. Pick a text encoder to download; the image model and VAE are shared between the two.",
+                ModelDownloadDialog.ImageOptions, ImageModelDir, note))
+                dlg.ShowDialog(owner);
+            return ImageModelInstalled();
+        }
+
+        string ImageServerArgs()
+        {
+            // Classify the bundle's files by name so the order in the catalog doesn't matter.
+            string den = null, enc = null, mmp = null, vae = null;
+            foreach (var f in ImageBundle().Files)
+            {
+                string n = f.FileName, path = "\"" + Path.Combine(ImageModelDir, n) + "\"";
+                if (n.EndsWith(".safetensors", StringComparison.OrdinalIgnoreCase)) vae = path;
+                else if (n.IndexOf("mmproj", StringComparison.OrdinalIgnoreCase) >= 0) mmp = path;
+                else if (n.IndexOf("Turbo", StringComparison.OrdinalIgnoreCase) >= 0 && n.IndexOf("Uncensored", StringComparison.OrdinalIgnoreCase) < 0) den = path;
+                else enc = path;
+            }
+            Uri uri;
+            Uri.TryCreate(settings.ImageServerUrl, UriKind.Absolute, out uri);
+            return string.Format("--diffusion-model {0} --llm {1} --llm_vision {2} --vae {3} --flash-attn on {4} --listen-ip {5} --listen-port {6}",
+                den, enc, mmp, vae, settings.ImageServerArgs, uri != null ? uri.Host : "127.0.0.1", uri != null ? uri.Port : 8766);
+        }
+
+        void StartImageEngine()
+        {
+            if (imageServer.Running) return;
+            // Take the GPU: stop the text model if this window is running it.
+            textWasRunning = server.Running;
+            if (server.Running) { CancelGeneration(); server.Stop(); serverState = "offline"; }
+            string llamaDir = Path.GetDirectoryName(Settings.Resolve(settings.ServerExe));   // sd-server shares the CUDA DLLs
+            string err = imageServer.StartProcess(Settings.Resolve(settings.ImageServerExe), ImageServerArgs(), llamaDir);
+            if (err != null)
+            {
+                imageState = "offline";
+                MessageBox.Show(this, err + "\n\nYou can change the paths in Qwen > Settings.", AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                if (textWasRunning && settings.AutoStartServer) StartServer(false);
+                return;
+            }
+            imageState = "loading";
+            imageIdleSince = DateTime.MaxValue;
+            imageIdleTimer.Start();
+            SetAiStatus();
+        }
+
+        /// <summary>Stops the image engine; optionally brings the text model back if it was running before.</summary>
+        void StopImageEngine(bool restartText)
+        {
+            bool was = imageServer.Running;
+            imageServer.Stop();
+            imageState = "offline";
+            imageIdleTimer.Stop();
+            imageIdleSince = DateTime.MaxValue;
+            bool bringText = restartText && textWasRunning && settings.AutoStartServer && !background;
+            textWasRunning = false;
+            if (bringText) StartServer(false);
+            if (was) SetAiStatus();
+        }
+
+        /// <summary>Studio activity: reset the idle countdown.</summary>
+        internal void MarkImageActivity() { imageIdleSince = DateTime.MaxValue; }
+
+        /// <summary>Studio closed: start the idle countdown toward unloading the image model.</summary>
+        internal void ImageStudioClosed() { imageIdleSince = DateTime.Now; }
+
+        void ImageIdleCheck()
+        {
+            if (!imageServer.Running) { imageIdleTimer.Stop(); return; }
+            if (imageIdleSince == DateTime.MaxValue) return;               // active or studio open
+            if (imageStudio != null && !imageStudio.IsDisposed && imageStudio.Visible) return;
+            if ((DateTime.Now - imageIdleSince).TotalMinutes >= settings.ImageIdleMinutes) StopImageEngine(true);
+        }
+
+        /// <summary>Ensures the image engine is loaded and answering, then calls onReady (both callbacks run on the UI thread).</summary>
+        internal void EnsureImageReady(Action onReady, Action<string> onError)
+        {
+            if (!EnsureImageModel(imageStudio != null && !imageStudio.IsDisposed ? (IWin32Window)imageStudio : this)) { onError("No image model is installed."); return; }
+            MarkImageActivity();
+            if (imageState == "ready" && imageServer.Running) { onReady(); return; }
+            if (!imageServer.Running) StartImageEngine();
+            if (!imageServer.Running) { onError("The image engine could not start. See Qwen > Image Model > Show Image Log."); return; }
+            WaitReady(imageClient.CheckHealth, () => imageServer.Running, DateTime.Now, 4,
+                () => { imageState = "ready"; SetAiStatus(); onReady(); },
+                msg => { SetAiStatus(); onError(msg); },
+                () => { imageState = "loading"; SetAiStatus(); }, "image engine");
+        }
+
+        /// <summary>Ensures the text model is loaded and answering (stops the image engine first), then calls onReady.</summary>
+        internal void EnsureTextReady(Action onReady, Action<string> onError)
+        {
+            if (imageServer.Running) { imageServer.Stop(); imageState = "offline"; imageIdleTimer.Stop(); }
+            if (!File.Exists(Settings.Resolve(settings.ModelPath)) && Settings.FindModels().Length == 0) { onError("No language model is installed (Qwen > Model)."); return; }
+            if (!server.Running) StartServer(false);
+            if (!server.Running) { onError("The language model could not start."); return; }
+            WaitReady(llm.CheckHealth, () => server.Running, DateTime.Now, 3,
+                () => { serverState = "ready"; SetAiStatus(); onReady(); },
+                msg => { SetAiStatus(); onError(msg); },
+                () => { serverState = "loading"; SetAiStatus(); }, "language model");
+        }
+
+        /// <summary>Polls a health check off the UI thread until it reports "ready", then schedules the next poll on a UI timer.</summary>
+        void WaitReady(Func<string> health, Func<bool> alive, DateTime started, int timeoutMin, Action onReady, Action<string> onError, Action onTick, string what)
+        {
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                string st = health();
+                SafeInvoke(() =>
+                {
+                    if (st == "ready") { onReady(); return; }
+                    if (!alive()) { onError("The " + what + " stopped while loading. See its log."); return; }
+                    if ((DateTime.Now - started).TotalMinutes > timeoutMin) { onError("The " + what + " took too long to load."); return; }
+                    onTick();
+                    var t = new System.Windows.Forms.Timer { Interval = 800 };
+                    t.Tick += (s, e) => { t.Stop(); t.Dispose(); WaitReady(health, alive, started, timeoutMin, onReady, onError, onTick, what); };
+                    t.Start();
+                });
+            });
+        }
+
+        /// <summary>The ImageClient the studio submits jobs through.</summary>
+        internal ImageClient ImageApi { get { return imageClient; } }
+
+        /// <summary>Expands a short idea into a detailed image prompt using the text model (swaps the GPU to text first).</summary>
+        internal void ImproveImagePrompt(string idea, Action<string> onResult, Action<string> onError)
+        {
+            EnsureTextReady(() =>
+            {
+                string instr = "Expand this short idea into one vivid, detailed image-generation prompt on a single line (about 30 to 60 words). " +
+                               "Describe the subject, setting, lighting, colors, style and mood. Output only the prompt, with no label or quotes.\n\nIdea: " + idea;
+                var raw = new StringBuilder();
+                var th = new Thread(() =>
+                {
+                    try { llm.Stream(SystemPrompt, instr, d => raw.Append(d), () => false); }
+                    catch (Exception ex) { SafeInvoke(() => onError(ex.Message)); return; }
+                    SafeInvoke(() => onResult(OneLine(raw.ToString())));
+                }) { IsBackground = true };
+                th.Start();
+            }, onError);
+        }
+
+        static string OneLine(string s)
+        {
+            if (s == null) return "";
+            s = s.Replace("\r", " ").Replace("\n", " ").Trim().Trim('"', '\'', '*');
+            while (s.Contains("  ")) s = s.Replace("  ", " ");
+            return s;
+        }
+
+        internal Settings AppSettings { get { return settings; } }
+        internal NoteManager NotesManager { get { return notes; } }
+
+        void OpenImageStudio(StickyNote note, string prompt, string refPath)
+        {
+            if (background) LeaveBackground(null);
+            if (imageStudio == null || imageStudio.IsDisposed) imageStudio = new ImageStudioForm(this);
+            imageStudio.Prepare(note, prompt, refPath);
+            if (!imageStudio.Visible) imageStudio.Show(this);
+            if (imageStudio.WindowState == FormWindowState.Minimized) imageStudio.WindowState = FormWindowState.Normal;
+            imageStudio.Activate();
+        }
+
+        void ShowImageLog()
+        {
+            if (File.Exists(imageServer.LogPath)) Process.Start(Application.ExecutablePath, "\"" + imageServer.LogPath + "\"");
+            else MessageBox.Show(this, "No image log yet. It's written when QwenPad starts the image engine.", AppName);
+        }
+
+        #endregion
 
         void ShowSettings()
         {
@@ -1779,6 +1995,8 @@ namespace QwenPad
             NewDocument();   // the editor was saved or discarded already; it reopens empty, like a fresh start
             // Free the GPU while only notes are open; Ctrl+K in a note offers to load the model again.
             if (server.Running) { server.Stop(); serverState = "offline"; SetAiStatus(); }
+            if (imageStudio != null && !imageStudio.IsDisposed) imageStudio.Close();
+            StopImageEngine(false);
             StartWakeListener();
             if (tray == null) tray = BuildTray();
             UpdateTray();
@@ -1955,6 +2173,8 @@ namespace QwenPad
             if (tray != null) { tray.Visible = false; tray.Dispose(); }
             notes.Dispose();
             server.Dispose();
+            imageIdleTimer.Dispose();
+            imageServer.Dispose();
             base.OnFormClosed(e);
         }
 
@@ -1962,6 +2182,17 @@ namespace QwenPad
         {
             try { if (!IsDisposed && IsHandleCreated) BeginInvoke(a); }
             catch (InvalidOperationException) { }
+        }
+
+        /// <summary>Marshals an action onto the UI thread (used by the Image Studio's worker thread).</summary>
+        internal void BeginInvokeSafe(Action a) { SafeInvoke(a); }
+
+        /// <summary>Creates a new sticky note holding the given image file (used by Send to Note).</summary>
+        internal void AddImageToNewNote(string path)
+        {
+            if (!NotesAvailable()) return;
+            var n = notes.New("", Bounds);
+            if (n != null) try { n.AddImageFile(path); } catch { }
         }
 
         const int WM_SETREDRAW = 0x000B;

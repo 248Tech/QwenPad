@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>QwenPad: Beautiful Sticky Notes and a Private AI Notepad for Windows (Offline)</title>
-<meta name="description" content="Free, open-source desktop sticky notes and Notepad for Windows with an offline AI. 15 note designs, rich text, font colors, images, drawing, pin on top, notes that stay open and reopen at startup, plus Qwen3.5 running locally via llama.cpp. Portable, no account.">
+<meta name="description" content="Free, open-source desktop sticky notes and Notepad for Windows with offline AI. 23 note designs, rich text, drawing, notes that stay open, local text-to-image and image editing with Qwen-Image-2.1, plus writing help from Qwen3.5 via llama.cpp. Portable, no account.">
 <meta name="keywords" content="sticky notes for Windows, desktop sticky notes, Windows Sticky Notes alternative, cute sticky notes, pin notes on top, notepad with AI, offline AI text editor, local LLM notepad, Windows notepad alternative, private AI writing assistant, Qwen3.5, llama.cpp GUI, GGUF, sticky notes, portable text editor, open source">
 <meta name="author" content="248Tech">
 <meta name="theme-color" content="#7c4dff">
@@ -33,7 +33,7 @@
   "applicationCategory": "UtilitiesApplication",
   "applicationSubCategory": "Text editor",
   "operatingSystem": "Windows 10, Windows 11",
-  "softwareVersion": "1.11.2",
+  "softwareVersion": "2.0.0",
   "license": "https://opensource.org/licenses/MIT",
   "url": "https://248tech.github.io/QwenPad/",
   "downloadUrl": "https://github.com/248Tech/QwenPad/releases/latest",
@@ -41,7 +41,7 @@
   "image": "https://248tech.github.io/QwenPad/images/notes-hero.png",
   "author": { "@type": "Organization", "name": "248Tech", "url": "https://github.com/248Tech" },
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-  "featureList": "Desktop sticky notes with 23 hand-drawn themes and 6 colors; adjustable background art; rich text, font colors, images, GIFs and freehand drawing; pin on top and opacity; notes stay open after closing and reopen at Windows startup; 30-day trash and automatic backups; offline AI rewrite, grammar fix, summarize, continue writing; dark mode; portable"
+  "featureList": "Desktop sticky notes with 23 hand-drawn themes and 6 colors; adjustable background art; local text-to-image generation and image editing (Qwen-Image-2.1); rich text, font colors, images, GIFs and freehand drawing; pin on top and opacity; notes stay open after closing and reopen at Windows startup; 30-day trash and automatic backups; offline AI rewrite, grammar fix, summarize, continue writing; dark mode; portable"
 }
 </script>
 <script type="application/ld+json">
@@ -50,7 +50,9 @@
   "@type": "FAQPage",
   "mainEntity": [
     { "@type": "Question", "name": "Can I use QwenPad's sticky notes without the AI?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Yes. The sticky notes work fully without a model. They have 15 designs, rich text, font colors, images, drawing, pin on top and opacity." } },
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. The sticky notes work fully without a model. They have 23 designs, rich text, font colors, images, drawing, pin on top and opacity." } },
+    { "@type": "Question", "name": "Can QwenPad generate images?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. The Image Studio generates and edits images locally with Qwen-Image-2.1 via stable-diffusion.cpp. It is a separate download under the Qwen Research License (research and evaluation use; commercial use needs a license from Alibaba)." } },
     { "@type": "Question", "name": "Do QwenPad sticky notes stay on screen after closing the app?",
       "acceptedAnswer": { "@type": "Answer", "text": "Yes. By default, closing QwenPad leaves your notes open with QwenPad in the tray, and Open Notes When Windows Starts reopens them after a restart." } },
     { "@type": "Question", "name": "Does QwenPad work offline?",
@@ -153,6 +155,7 @@
       <div class="card"><h3>✦ AI where you type</h3><p>Rewrite, fix grammar, change tone, translate, summarize or continue with one shortcut. It streams live and undoes in one step.</p></div>
       <div class="card"><h3>🌙 Dark mode</h3><p>Follows Windows automatically, from the title bar and menus to the scrollbars and notes.</p></div>
       <div class="card"><h3>🎒 Portable</h3><p>Unzip anywhere, even a USB stick. Settings, notes and models stay in one folder.</p></div>
+      <div class="card"><h3>🖼 Make &amp; edit images</h3><p>The Image Studio turns a prompt into a picture, or edits one you drop in, with Qwen-Image-2.1 running locally. Research/evaluation license.</p></div>
       <div class="card"><h3>🆓 Free and open source</h3><p>MIT licensed, with no ads, no subscription and no telemetry.</p></div>
     </div>
   </section>
@@ -192,6 +195,7 @@
   <section>
     <h2>FAQ</h2>
     <details><summary>Can I use the sticky notes without the AI?</summary><p>Yes. Notes work fully without a model; the AI is there when you want it.</p></details>
+    <details><summary>Can QwenPad generate images?</summary><p>Yes. Qwen &gt; Image Studio makes and edits images locally with Qwen-Image-2.1 (a separate ~11 GB download on first use). The weights are under the Qwen Research License — research and evaluation use; commercial use needs a license from Alibaba. Minutes per image on a small GPU; much faster on a stronger one.</p></details>
     <details><summary>Do my notes stay on screen after I close QwenPad?</summary><p>Yes, by default. QwenPad waits in the tray with the model unloaded. Turn on Notes &gt; Open Notes When Windows Starts to bring them back after every restart.</p></details>
     <details><summary>What if I delete a note by mistake?</summary><p>Notes &gt; Restore Deleted Notes brings back anything deleted in the last 30 days, and the backups folder keeps daily copies.</p></details>
     <details><summary>Does QwenPad work offline?</summary><p>Yes. After a one-time model download, it runs Qwen3.5 locally through llama.cpp and only talks to 127.0.0.1.</p></details>

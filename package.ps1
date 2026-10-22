@@ -37,8 +37,19 @@ foreach ($dll in 'vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll') {
     $sys = Join-Path $env:WINDIR "System32\$dll"
     if (Test-Path $sys) { Copy-Item $sys (Join-Path $Dest "runtime\llama\$dll") -Force } else { Write-Warning "$dll not found; users will need the VC++ redistributable." }
 }
+# stable-diffusion.cpp (image generation), if fetched. It reuses the CUDA DLLs from runtime\llama.
+if (Test-Path (Join-Path $src 'runtime\sd\sd-server.exe')) {
+    Write-Host '== Runtime (stable-diffusion.cpp)'
+    robocopy (Join-Path $src 'runtime\sd') (Join-Path $Dest 'runtime\sd') /E /NFL /NDL /NJH /NJS /NP | Out-Null
+    if ($LASTEXITCODE -ge 8) { throw 'Copying sd runtime failed' }
+    foreach ($dll in 'vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll') {
+        $sys = Join-Path $env:WINDIR "System32\$dll"
+        if (Test-Path $sys) { Copy-Item $sys (Join-Path $Dest "runtime\sd\$dll") -Force }
+    }
+} else { Write-Warning 'runtime\sd not found; the release will not include image generation. Run tools\fetch-runtime.ps1.' }
 
-New-Item -ItemType Directory -Force (Join-Path $Dest 'models'), (Join-Path $Dest 'notes') | Out-Null
+New-Item -ItemType Directory -Force (Join-Path $Dest 'models'), (Join-Path $Dest 'models\image'), (Join-Path $Dest 'notes') | Out-Null
+Set-Content (Join-Path $Dest 'models\image\PUT-IMAGE-MODELS-HERE.txt') 'Qwen > Image Studio downloads the Qwen-Image model here on first use (Qwen > Image Model > Download Image Model).'
 $defaultModel = 'Qwen3.5-9B-Q4_K_M.gguf'
 if (-not $NoModel) {
     $defaultModel = 'Qwen3.5-9B-Abliterated-Q4_K_M.gguf'
@@ -67,6 +78,15 @@ WordWrap=1
 StatusBar=1
 Theme=system
 Maximized=0
+[Images]
+ImageServerExe=runtime\sd\sd-server.exe
+ImageServerUrl=http://127.0.0.1:8766
+ImageModelDir=models\image
+ImageEncoder=uncensored
+ImageServerArgs=--offload-to-cpu --vae-tiling
+ImageIdleMinutes=5
+ImageSize=768x768
+ImageOutputDir=images
 "@ | Set-Content (Join-Path $Dest 'QwenPad.ini') -Encoding utf8NoBOM
 foreach ($doc in 'README.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'CHANGELOG.md') {
     if (Test-Path (Join-Path $src $doc)) { Copy-Item (Join-Path $src $doc) (Join-Path $Dest $doc) -Force }

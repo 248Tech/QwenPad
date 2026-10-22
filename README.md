@@ -26,6 +26,7 @@ Windows Sticky Notes is plain. Notepad is dumb. Cloud AI editors read everything
 - 🗒️ **Sticky notes you'll actually enjoy.** 29 looks, from six classic colors to 23 hand-illustrated themes across six categories. Rich text, font colors, bullets, images, GIFs and freehand drawing.
 - 📌 **Always where you need them.** Pin notes above every window, make them see-through, and keep them on screen even after you close QwenPad. They can even reopen when Windows starts.
 - ✦ **AI in every note.** Press Ctrl+K in a note to have Qwen rewrite it, add to it or turn it into a checklist. Untitled notes get a title automatically, and an email becomes a stack of task notes.
+- 🖼 **Make and edit images, offline.** The Image Studio turns a prompt into a picture, or edits one you drop in, using Qwen-Image-2.1 through [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) — all on your own PC.
 - 🛟 **Notes don't get lost.** Crash-safe saves, a 30-day trash, automatic backups and one-click import from other copies.
 - 🔒 **Private by design.** The AI runs locally through [llama.cpp](https://github.com/ggml-org/llama.cpp). Nothing is uploaded, ever. It works on a plane.
 - ⚡ **Tiny, instant and portable.** A native ~230 KB app with no Electron and no installer. Unzip it anywhere, even a USB stick.
@@ -135,6 +136,24 @@ Already have a `.gguf` model? Drop it into the `models\` folder and pick it from
 
 With nothing selected, rewrite actions apply to the whole document. Results stream in live, and every AI edit is a **single undo step**.
 
+## 🖼 Image generation & editing
+
+**Qwen > Image Studio** (Ctrl+Shift+J) makes pictures from a prompt and edits ones you give it, with the **Qwen-Image-2.1** model running locally through stable-diffusion.cpp — nothing is uploaded.
+
+<img src="docs/images/image-studio.png" alt="QwenPad Image Studio generating an image locally, with a prompt box, size and seed controls, a live preview, and Save/Copy/Send to Note actions" width="60%">
+
+
+- **Text to image:** type a prompt, pick a size, and Generate. Live step previews show it forming; a progress bar and elapsed time keep you posted. Every result is saved to `images\<date>\` with its prompt alongside.
+- **Image editing:** drag in, paste, or pick up to 10 **reference images** (or right-click an image in a note → **✦ Edit with Qwen**), then describe the change. With references present, the prompt is an edit instruction.
+- **✦ Improve Prompt:** expands a short idea into a detailed prompt using the text model.
+- **From anywhere:** a note's **⋯ > 🖼 Generate Image** (drops the result into that note), the editor's right-click **🖼 Generate Image from Selection**, or the Qwen menu.
+- **Do more with a result:** Save As, Copy, Send to a sticky note, Use as Reference (to refine it), or Open Folder. A history strip shows the day's images.
+- **Shares the GPU automatically.** Because the text model and the image model don't both fit on a small GPU, starting an image pauses the text model and loads the image one; after a few idle minutes it unloads and the text model returns. The status bar shows which is loaded.
+
+> **One-time download (~11 GB), and licensing.** The image model is fetched from Hugging Face on first use (**Qwen > Image Model > Download Image Model**). The default build pairs the Turbo model with an *uncensored* text encoder (refusal behavior removed), so it follows prompts literally; a standard encoder is also offered. The **Qwen-Image-2.1 weights are under the Qwen Research License: personal, research and evaluation use only — commercial use needs a separate license from Alibaba.** The only prompts QwenPad refuses are ones that sexualize minors.
+
+> **Speed.** Image generation is heavy. On a 4 GB GPU (GTX 1650), a 512×512 image takes about 2–3 minutes and 768×768 noticeably longer; 1024×1024 needs more VRAM. Pick a smaller size if generation runs out of memory. A stronger GPU is much faster.
+
 ## 📝 Everything you expect from Notepad
 New/Open/Save/Save As/Print · Find/Replace (match case, wrap, up/down) · Go To line · Word wrap · Font · Zoom (Ctrl+Plus/Minus/0, Ctrl+wheel) · Status bar (Ln/Col, zoom, line endings, encoding) · Time/Date (F5) · Drag-and-drop · Ctrl+Backspace word delete. It detects and preserves **UTF-8, UTF-8 BOM, UTF-16 and ANSI** encodings and **CRLF/LF/CR** line endings.
 
@@ -217,6 +236,9 @@ New/Open/Save/Save As/Print · Find/Replace (match case, wrap, up/down) · Go To
 | Rewrite > Make Shorter · Make Longer · Professional · Casual · Friendly Tone · Translate To… | |
 | Summarize · Key Points | |
 | ✦ Tasks From Email | Paste an email, get one task note per action item |
+| 🖼 Image Studio… | Ctrl+Shift+J |
+| 🖼 Generate Image from Selection… | Editor right-click, or the Qwen menu |
+| Image Model > Download Image Model… · Stop Image Engine · Show Image Log | |
 | Stop Generating | Esc |
 | Start / Stop Local Model | |
 | Model > *(your models)* · Download a Model… · Browse for a .gguf… | |
@@ -280,10 +302,13 @@ QwenPad starts `llama-server` hidden in the background on launch (port 8765, loc
 QwenPad.exe        the app
 QwenPad.ini        settings (relative paths, so the folder can move)
 runtime\llama\     llama.cpp server + CUDA runtime + VC++ runtime
-models\            .gguf models (Qwen > Model lists them all)
+runtime\sd\        stable-diffusion.cpp server (image generation)
+models\            .gguf text models (Qwen > Model lists them all)
+models\image\      the Qwen-Image model (downloaded on first use of Image Studio)
 notes\             sticky notes as .txt (notes\.trash = deleted, kept 30 days)
 backups\           automatic copies of notes\ (daily and on each update)
-logs\              model server log
+images\            images you generate, by date
+logs\              model server logs (server.log, sd-server.log)
 ```
 
 ## Configuration
@@ -298,15 +323,19 @@ No SDK needed. It compiles with the C# compiler that ships with Windows.
 git clone https://github.com/248Tech/QwenPad.git
 cd QwenPad
 .\build.cmd                    # -> QwenPad.exe
-.\tools\fetch-runtime.ps1      # downloads the pinned llama.cpp build into runtime\llama
+.\tools\fetch-runtime.ps1      # downloads llama.cpp into runtime\llama and stable-diffusion.cpp into runtime\sd
 .\package.ps1 -Release         # -> dist\QwenPad-v<ver>-win-x64.zip + SHA256SUMS.txt
 ```
 
-Source layout: `src\MainForm.cs` (editor, AI actions, tray), `src\StickyNotes.cs` (notes and their storage), `src\NoteDesigns.cs` (the designs), `src\NotesList.cs`, `src\Sketch.cs` (drawing), `src\LlmClient.cs` (streaming client), `src\ServerManager.cs`, `src\ModelDownloader.cs`, `src\Theme.cs`, `src\Dialogs.cs`.
+Source layout: `src\MainForm.cs` (editor, AI actions, image engine, tray), `src\StickyNotes.cs` (notes and their storage), `src\NoteDesigns.cs` (the designs), `src\NotesList.cs`, `src\Sketch.cs` (drawing), `src\ImageStudio.cs` (image generation UI), `src\ImageClient.cs` (sd-server client), `src\LlmClient.cs` (streaming client), `src\ServerManager.cs`, `src\ModelDownloader.cs`, `src\Theme.cs`, `src\Dialogs.cs`.
 
 ## FAQ
 
 **Can I use the sticky notes without the AI?** Yes. Notes work fully without a model. The AI is there when you want it.
+
+**Can QwenPad make images?** Yes — **Qwen > Image Studio** generates and edits images locally with Qwen-Image-2.1. It's a separate ~11 GB download, fetched on first use. The weights are under the Qwen Research License (research and evaluation use; commercial use needs a license from Alibaba). On a small GPU it's slow (minutes per image); a stronger GPU is much faster.
+
+**Why does the text model stop when I generate an image?** The text and image models are large and don't both fit on a typical GPU, so QwenPad loads one at a time and swaps automatically. After a few idle minutes the image model unloads and the text model returns.
 
 **Will my notes stay on screen after I close QwenPad?** Yes, by default. QwenPad waits in the tray with the model unloaded, and exits when you hide the last note or choose **Quit QwenPad** from the tray. Turn it off with **Notes > Keep Notes Open When QwenPad Closes**.
 

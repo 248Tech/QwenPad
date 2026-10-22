@@ -7,8 +7,8 @@ using System.Text;
 namespace QwenPad
 {
     /// <summary>
-    /// Launches llama-server as a hidden child process. The child is placed in a kill-on-close
-    /// job object so the model is unloaded even if QwenPad crashes.
+    /// Launches a local model server (llama-server for text, sd-server for images) as a hidden child process.
+    /// The child is placed in a kill-on-close job object so the model is unloaded even if QwenPad crashes.
     /// </summary>
     sealed class ServerManager : IDisposable
     {
@@ -16,11 +16,19 @@ namespace QwenPad
         IntPtr job;
         StreamWriter log;
         readonly object logLock = new object();
+        readonly string logName, displayName;
+        string logPath;
 
-        static string logPath;
+        public ServerManager() : this("server.log", "llama-server") { }
 
-        /// <summary>logs\server.log in the app folder (portable); %TEMP% if the folder is read-only.</summary>
-        public static string LogPath
+        public ServerManager(string logName, string displayName)
+        {
+            this.logName = logName;
+            this.displayName = displayName;
+        }
+
+        /// <summary>logs\&lt;logName&gt; in the app folder (portable); %TEMP% if the folder is read-only.</summary>
+        public string LogPath
         {
             get
             {
@@ -32,9 +40,9 @@ namespace QwenPad
                     string probe = Path.Combine(dir, ".write-test");
                     File.WriteAllText(probe, "");
                     File.Delete(probe);
-                    logPath = Path.Combine(dir, "server.log");
+                    logPath = Path.Combine(dir, logName);
                 }
-                catch { logPath = Path.Combine(Path.GetTempPath(), "QwenPad-llama-server.log"); }
+                catch { logPath = Path.Combine(Path.GetTempPath(), "QwenPad-" + logName); }
                 return logPath;
             }
         }
@@ -42,7 +50,7 @@ namespace QwenPad
         public bool Running { get { return proc != null && !proc.HasExited; } }
         public bool ExitedUnexpectedly { get; private set; }
 
-        /// <summary>Starts the server; returns an error message, or null on success.</summary>
+        /// <summary>Starts llama-server from the settings; returns an error message, or null on success.</summary>
         public string Start(Settings s)
         {
             if (Running) return null;
@@ -60,9 +68,15 @@ namespace QwenPad
 
             Uri uri;
             if (!Uri.TryCreate(s.ServerUrl, UriKind.Absolute, out uri)) return "Invalid server URL: " + s.ServerUrl;
+            return StartProcess(exe, string.Format("-m \"{0}\" --host {1} --port {2} {3}", model, uri.Host, uri.Port, s.ServerArgs), null);
+        }
 
-            var psi = new ProcessStartInfo(exe, string.Format("-m \"{0}\" --host {1} --port {2} {3}",
-                model, uri.Host, uri.Port, s.ServerArgs))
+        /// <summary>Starts any server exe hidden, logging its output. extraPath is prepended to its PATH (for shared DLLs).</summary>
+        public string StartProcess(string exe, string args, string extraPath)
+        {
+            if (Running) return null;
+            if (!File.Exists(exe)) return displayName + " was not found at:\n" + exe;
+            var psi = new ProcessStartInfo(exe, args)
             {
                 UseShellExecute = false,
                 CreateNoWindow = true,
@@ -70,6 +84,8 @@ namespace QwenPad
                 RedirectStandardError = true,
                 WorkingDirectory = Path.GetDirectoryName(exe)
             };
+            if (!string.IsNullOrEmpty(extraPath))
+                psi.EnvironmentVariables["PATH"] = extraPath + ";" + Environment.GetEnvironmentVariable("PATH");
 
             CloseLog();
             try { log = new StreamWriter(new FileStream(LogPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite), Encoding.UTF8) { AutoFlush = true }; }
@@ -85,7 +101,7 @@ namespace QwenPad
             p.ErrorDataReceived += onLine;
             p.Exited += (o, e) => { if (proc == p) ExitedUnexpectedly = true; };
             try { p.Start(); }
-            catch (Exception ex) { return "Could not start llama-server: " + ex.Message; }
+            catch (Exception ex) { return "Could not start " + displayName + ": " + ex.Message; }
 
             AddToJob(p);
             p.BeginOutputReadLine();
