@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.0.1] - 2026-10-23
+
+### Fixed
+- **Sticky notes return to their own monitor after it's turned off and back on.** When a monitor powers off, Windows throws every window onto a surviving monitor; QwenPad used to save those piled-up positions, so you had to drag them all back. Now each note remembers where you put it, ignores the forced shuffle, and moves back to its spot once its monitor is available again.
+
 ## [2.0.0] - 2026-10-22
 
 ### Added

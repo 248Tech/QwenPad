@@ -81,6 +81,8 @@ namespace QwenPad
         internal bool AutoTitleTried;
         internal int OpacityPercent = 100;
         internal int ArtStrength = 100;   // how strongly the theme artwork shows (100 full .. 10 faint watermark)
+        internal Rectangle DesiredBounds;  // where the user put the note; kept across monitor power-off shuffles
+        internal bool SuppressMoveSave;    // true while Windows is shuffling windows after a display change
         bool loadingContent;   // text being loaded from disk doesn't count as an edit
 
         // Handwritten look: Ink Free (Windows 10 1803+ / 11), else Segoe Print (Windows 7+), else Segoe UI.
@@ -312,9 +314,10 @@ namespace QwenPad
                 for (int i = 0; i < ColorNames.Length; i++) ((ToolStripMenuItem)menu.Items[i]).Checked = Design == 0 && i == ColorIndex;
             };
 
-            Move += delegate { mgr.MarkDirty(this); };
-            Resize += delegate { mgr.MarkDirty(this); LayoutGallery(); Invalidate(); };
-            Shown += delegate { AutoFit(); ApplyPin(); };
+            // Track where the user puts the note, but ignore the forced moves Windows does when a monitor turns off.
+            Move += delegate { if (SuppressMoveSave) return; if (WindowState == FormWindowState.Normal) DesiredBounds = Bounds; mgr.MarkDirty(this); };
+            Resize += delegate { if (!SuppressMoveSave && WindowState == FormWindowState.Normal) DesiredBounds = Bounds; mgr.MarkDirty(this); LayoutGallery(); Invalidate(); };
+            Shown += delegate { AutoFit(); ApplyPin(); if (DesiredBounds.IsEmpty) DesiredBounds = Bounds; };
             VisibleChanged += delegate { if (Visible) ApplyPin(); };
             ResizeBegin += delegate { sizeAtResizeBegin = Size; };
             ResizeEnd += delegate
@@ -1312,7 +1315,8 @@ namespace QwenPad
 
         internal string Meta()
         {
-            var b = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+            // Save the intended position, not wherever a monitor-off shuffle may have parked the note.
+            var b = !DesiredBounds.IsEmpty ? DesiredBounds : (WindowState == FormWindowState.Normal ? Bounds : RestoreBounds);
             return string.Format(CultureInfo.InvariantCulture, "#note x={0} y={1} w={2} h={3} bh={4} color={5} top={6} visible={7} op={8} at={9} sk={10} sh={11} design={12}",
                 b.X, b.Y, b.Width, b.Height, baseHeight > 0 ? baseHeight : b.Height, ColorIndex, TopMost ? 1 : 0,
                 WantsVisible ? 1 : 0, OpacityPercent, AutoTitleTried ? 1 : 0, sketchOn && sketch.HasInk ? 1 : 0, sketchHeight, Design) + " art=" + ArtStrength;
@@ -1332,6 +1336,7 @@ namespace QwenPad
             if (v.TryGetValue("w", out w) && v.TryGetValue("h", out h)) Size = new Size(w, h);
             baseHeight = v.TryGetValue("bh", out bh) && bh > 0 ? bh : Height;
             if (v.TryGetValue("x", out x) && v.TryGetValue("y", out y)) Location = new Point(x, y);
+            DesiredBounds = new Rectangle(Location, Size);   // remember the saved spot even if its monitor is off right now
             if (v.TryGetValue("color", out c)) SetColor(c);
             if (v.TryGetValue("top", out top)) TopMost = top == 1;
             UpdatePinButton();
@@ -1342,6 +1347,15 @@ namespace QwenPad
             if (v.TryGetValue("design", out design) && design > 0) SetDesign(design);
             if (v.TryGetValue("art", out art)) SetArtStrength(art);
             if (!OnScreen(Bounds)) Location = new Point(Screen.PrimaryScreen.WorkingArea.Right - Width - 40, Screen.PrimaryScreen.WorkingArea.Top + 40);
+        }
+
+        /// <summary>Moves the note back to a known-good rectangle (after a monitor returns), without counting it as a user move.</summary>
+        internal void RestoreTo(Rectangle r)
+        {
+            if (!IsHandleCreated) return;
+            SuppressMoveSave = true;
+            try { if (WindowState != FormWindowState.Normal) WindowState = FormWindowState.Normal; Bounds = r; }
+            catch { }
         }
 
         internal static bool OnScreen(Rectangle r)
@@ -1750,6 +1764,8 @@ namespace QwenPad
         readonly List<StickyNote> notes = new List<StickyNote>();
         readonly HashSet<StickyNote> dirty = new HashSet<StickyNote>();
         readonly System.Windows.Forms.Timer saveTimer = new System.Windows.Forms.Timer { Interval = 800 };
+        // After a display change, wait for Windows to finish shuffling windows, then put notes back on their own monitor.
+        readonly System.Windows.Forms.Timer displayTimer = new System.Windows.Forms.Timer { Interval = 1200 };
         NotesListForm listForm;
         Mutex mutex;
         bool owner, loading;
@@ -1765,6 +1781,30 @@ namespace QwenPad
             this.askQwen = askQwen;
             this.autoTitle = autoTitle;
             saveTimer.Tick += delegate { Flush(); };
+            displayTimer.Tick += delegate { RestorePositions(); };
+        }
+
+        /// <summary>
+        /// Called when the display configuration changes (a monitor turned off/on, resolution changed). Windows throws
+        /// every window onto a surviving monitor; we freeze each note's saved position, wait for the shuffle to settle,
+        /// then move the notes back to where the user had them once their monitor is available again.
+        /// </summary>
+        public void BeginDisplayChange()
+        {
+            foreach (var n in notes) n.SuppressMoveSave = true;
+            displayTimer.Stop();
+            displayTimer.Start();
+        }
+
+        void RestorePositions()
+        {
+            displayTimer.Stop();
+            foreach (var n in notes)
+            {
+                var d = n.DesiredBounds;
+                if (!d.IsEmpty && n.WantsVisible && StickyNote.OnScreen(d) && n.Bounds != d) n.RestoreTo(d);
+                n.SuppressMoveSave = false;
+            }
         }
 
         public IList<StickyNote> Notes { get { return notes.AsReadOnly(); } }
@@ -2328,6 +2368,7 @@ namespace QwenPad
             foreach (var n in notes.ToArray()) { n.AllowClose = true; n.Close(); }
             notes.Clear();
             saveTimer.Dispose();
+            displayTimer.Dispose();
             if (mutex != null)
             {
                 if (owner) try { mutex.ReleaseMutex(); } catch { }

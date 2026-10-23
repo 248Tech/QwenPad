@@ -158,6 +158,7 @@ namespace QwenPad
 
             Theme.Changed += OnThemeChanged;
             SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+            SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
             ApplyTheme();
 
             NewDocument();
@@ -1153,6 +1154,10 @@ namespace QwenPad
         {
             if (Theme.Mode == "system") SafeInvoke(() => Theme.Refresh(false));
         }
+
+        // A monitor turned off/on (or resolution changed): Windows piles the notes onto a surviving monitor.
+        // Put them back on their own monitor once it's available again.
+        void OnDisplaySettingsChanged(object sender, EventArgs e) { SafeInvoke(() => notes.BeginDisplayChange()); }
 
         void OnThemeChanged(object sender, EventArgs e) { ApplyTheme(); }
 
@@ -2168,6 +2173,7 @@ namespace QwenPad
             uiTimer.Stop();
             healthTimer.Stop();
             SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+            SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
             Theme.Changed -= OnThemeChanged;
             StopWakeListener();
             if (tray != null) { tray.Visible = false; tray.Dispose(); }
