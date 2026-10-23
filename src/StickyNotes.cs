@@ -33,6 +33,7 @@ namespace QwenPad
         const int EM_SETCUEBANNER = 0x1501;
 
         int baseHeight;        // height the user chose; auto-expansion never shrinks below it
+        bool wasMinimized;     // true while the note is minimized, so restore returns it to its exact saved rect
         Size sizeAtResizeBegin;
         int contentHeight;     // height of the rich text content, from RichTextBox.ContentsResized
 
@@ -314,9 +315,28 @@ namespace QwenPad
                 for (int i = 0; i < ColorNames.Length; i++) ((ToolStripMenuItem)menu.Items[i]).Checked = Design == 0 && i == ColorIndex;
             };
 
-            // Track where the user puts the note, but ignore the forced moves Windows does when a monitor turns off.
-            Move += delegate { if (SuppressMoveSave) return; if (WindowState == FormWindowState.Normal) DesiredBounds = Bounds; mgr.MarkDirty(this); };
-            Resize += delegate { if (!SuppressMoveSave && WindowState == FormWindowState.Normal) DesiredBounds = Bounds; mgr.MarkDirty(this); LayoutGallery(); Invalidate(); };
+            // Track where the user puts the note, but ignore the forced moves Windows does when a monitor turns off,
+            // and the position/size churn Windows reports while a note is minimized.
+            Move += delegate { if (SuppressMoveSave || wasMinimized || WindowState != FormWindowState.Normal) return; DesiredBounds = Bounds; mgr.MarkDirty(this); };
+            Resize += delegate
+            {
+                if (WindowState == FormWindowState.Minimized) { wasMinimized = true; return; }
+                if (wasMinimized)
+                {
+                    // Restoring from the taskbar: the frame isn't zeroed yet, so the bounds are momentarily wrong.
+                    // Re-apply the saved rect after the restore settles, keeping saves suppressed until then.
+                    wasMinimized = false;
+                    if (!DesiredBounds.IsEmpty && IsHandleCreated)
+                    {
+                        SuppressMoveSave = true;
+                        var target = DesiredBounds;
+                        BeginInvoke((Action)(() => { try { Bounds = target; } catch { } SuppressMoveSave = false; LayoutGallery(); Invalidate(); }));
+                    }
+                    return;
+                }
+                if (!SuppressMoveSave && WindowState == FormWindowState.Normal) DesiredBounds = Bounds;
+                mgr.MarkDirty(this); LayoutGallery(); Invalidate();
+            };
             Shown += delegate { AutoFit(); ApplyPin(); if (DesiredBounds.IsEmpty) DesiredBounds = Bounds; };
             VisibleChanged += delegate { if (Visible) ApplyPin(); };
             ResizeBegin += delegate { sizeAtResizeBegin = Size; };
@@ -399,7 +419,33 @@ namespace QwenPad
         internal void SetOpacity(int percent)
         {
             OpacityPercent = Math.Max(20, Math.Min(100, percent));
-            Opacity = OpacityPercent / 100.0;
+            if (fadeTimer == null || !fadeTimer.Enabled) Opacity = OpacityPercent / 100.0;   // don't fight an in-progress fade-in
+        }
+
+        System.Windows.Forms.Timer fadeTimer;
+        double fadeTarget = 1.0;
+
+        /// <summary>Shows the note with a short fade-in when it was hidden or minimized; a plain show if already up.</summary>
+        internal void ShowAnimated()
+        {
+            bool wasHidden = !Visible || WindowState == FormWindowState.Minimized;
+            if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+            if (wasHidden) { fadeTarget = OpacityPercent / 100.0; try { Opacity = 0; } catch { } }
+            Show();
+            if (!wasHidden) return;
+            if (fadeTimer == null)
+            {
+                fadeTimer = new System.Windows.Forms.Timer { Interval = 15 };
+                fadeTimer.Tick += delegate
+                {
+                    double next = Opacity + Math.Max(0.02, fadeTarget / 12.0);
+                    if (next >= fadeTarget) { fadeTimer.Stop(); try { Opacity = fadeTarget; } catch { } }
+                    else try { Opacity = next; } catch { }
+                };
+                Disposed += delegate { if (fadeTimer != null) fadeTimer.Dispose(); };
+            }
+            fadeTimer.Stop();
+            fadeTimer.Start();
         }
 
         /// <summary>Sets how strongly the theme artwork shows (100 full .. 10 faint watermark over plain paper).</summary>
@@ -1442,6 +1488,7 @@ namespace QwenPad
                 case Keys.Control | Keys.D: if (!Busy) mgr.Delete(this); return true;
                 case Keys.Control | Keys.P: SetPinned(!TopMost); return true;
                 case Keys.Control | Keys.W: mgr.HideNote(this); return true;
+                case Keys.Control | Keys.H: mgr.ToggleAll(); return true;
                 case Keys.Control | Keys.B: if (inBody) { ToggleEffect(CFM_BOLD); return true; } break;
                 case Keys.Control | Keys.I: if (inBody) { ToggleEffect(CFM_ITALIC); return true; } break;
                 case Keys.Control | Keys.U: if (inBody) { ToggleEffect(CFM_UNDERLINE); return true; } break;
@@ -2012,10 +2059,16 @@ namespace QwenPad
         public void ShowNote(StickyNote note)
         {
             note.WantsVisible = true;
-            if (note.WindowState == FormWindowState.Minimized) note.WindowState = FormWindowState.Normal;
-            note.Show();
+            note.ShowAnimated();
             note.Activate();
             MarkDirty(note);
+        }
+
+        /// <summary>Hides all notes if any are showing, otherwise shows them all (Ctrl+H).</summary>
+        public void ToggleAll()
+        {
+            if (!Available) return;
+            if (CountVisible() > 0) HideAll(); else ShowAll();
         }
 
         public void HideNote(StickyNote note)
@@ -2060,7 +2113,7 @@ namespace QwenPad
             if (!show) closeHidden.Clear();
         }
 
-        public void ShowAll() { foreach (var n in notes) { n.WantsVisible = true; n.Show(); MarkDirty(n); } }
+        public void ShowAll() { foreach (var n in notes) { n.WantsVisible = true; n.ShowAnimated(); MarkDirty(n); } }
         public void HideAll() { foreach (var n in notes) HideNote(n); }
         public void PinAll(bool pinned) { foreach (var n in notes) n.SetPinned(pinned); }
         public int CountPinned() { int c = 0; foreach (var n in notes) if (n.TopMost) c++; return c; }

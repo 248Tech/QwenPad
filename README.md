@@ -95,6 +95,7 @@ Windows Sticky Notes is plain. Notepad is dumb. Cloud AI editors read everything
 | **Ctrl+V** | Paste text or an image |
 | **Ctrl+P** | Pin on top of all windows (or unpin) |
 | **Ctrl+W** | Hide the note (it stays saved) |
+| **Ctrl+H** | Hide / show all notes (toggle) |
 | **Ctrl+D** | Delete (to the trash) |
 | **Ctrl+scroll** | Move the note forward or back in the stack |
 | **Menu key / Shift+F10** | Open the note's ⋯ menu |
@@ -185,7 +186,7 @@ New/Open/Save/Save As/Print · Find/Replace (match case, wrap, up/down) · Go To
 | Undo · Cut · Copy · Paste · Delete | Ctrl+Z · Ctrl+X · Ctrl+C · Ctrl+V · Del |
 | Find… | Ctrl+F |
 | Find Next / Find Previous | F3 / Shift+F3 |
-| Replace… | Ctrl+H |
+| Replace… | Ctrl+R |
 | Go To… | Ctrl+G |
 | Select All | Ctrl+A |
 | Time/Date | F5 |
@@ -213,6 +214,7 @@ New/Open/Save/Save As/Print · Find/Replace (match case, wrap, up/down) · Go To
 | Note from Selection | Makes a note from the selected text |
 | ✦ Summarize to Note | Qwen condenses the selection or document into a titled checklist note |
 | Show All Notes / Hide All Notes | |
+| Hide / Show All Notes (toggle) | Ctrl+H |
 | 📌 Pin All Notes on Top / Unpin All Notes | |
 | ☰ Notes List… | Ctrl+Shift+L |
 | Clickable Images | Off by default; when on, clicking a note's image opens it |

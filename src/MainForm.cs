@@ -232,7 +232,7 @@ namespace QwenPad
                 miUndo, new ToolStripSeparator(), miCut, miCopy, miPaste, miDelete, new ToolStripSeparator(),
                 Item("&Find...", Keys.Control | Keys.F, delegate { ShowFind(false); }),
                 miFindNext, miFindPrev,
-                Item("&Replace...", Keys.Control | Keys.H, delegate { ShowFind(true); }),
+                Item("&Replace...", Keys.Control | Keys.R, delegate { ShowFind(true); }),
                 Item("&Go To...", Keys.Control | Keys.G, delegate { GoTo(); }),
                 new ToolStripSeparator(),
                 Item("Select &All", Keys.Control | Keys.A, delegate { editor.SelectAll(); }),
@@ -285,6 +285,7 @@ namespace QwenPad
                 new ToolStripSeparator(),
                 Item("Show &All Notes", Keys.None, delegate { notes.ShowAll(); }),
                 Item("&Hide All Notes", Keys.None, delegate { notes.HideAll(); }),
+                Item("Hide / Show All Notes (&toggle)", Keys.Control | Keys.H, delegate { if (NotesAvailable()) notes.ToggleAll(); }),
                 Item("📌 &Pin All Notes on Top", Keys.None, delegate { notes.ShowAll(); notes.PinAll(true); }),
                 Item("&Unpin All Notes", Keys.None, delegate { notes.PinAll(false); }),
                 Item("☰ Notes &List...", Keys.Control | Keys.Shift | Keys.L, delegate { if (NotesAvailable()) notes.ShowList(this); }),
@@ -1369,10 +1370,11 @@ namespace QwenPad
             bool available = notes.Available;
             for (int i = 0; i < notesStaticCount; i++) items[i].Enabled = available;
             items[1].Enabled = available && editor.SelectionLength > 0;
-            items[4].Enabled = available && notes.CountVisible() < notes.Notes.Count;
-            items[5].Enabled = available && notes.CountVisible() > 0;
-            items[6].Enabled = available && notes.Notes.Count > 0 && notes.CountPinned() < notes.Notes.Count;
-            items[7].Enabled = available && notes.CountPinned() > 0;
+            items[4].Enabled = available && notes.CountVisible() < notes.Notes.Count;   // Show All
+            items[5].Enabled = available && notes.CountVisible() > 0;                    // Hide All
+            items[6].Enabled = available && notes.Notes.Count > 0;                       // Hide / Show toggle
+            items[7].Enabled = available && notes.Notes.Count > 0 && notes.CountPinned() < notes.Notes.Count;   // Pin All
+            items[8].Enabled = available && notes.CountPinned() > 0;                     // Unpin All
             miClickableImages.Checked = settings.ClickableImages;
             miClickableImages.ToolTipText = "When on, clicking an image in a sticky note opens it. Right-click > Open always works.";
             miKeepNotesOpen.Checked = settings.KeepNotesOpen;

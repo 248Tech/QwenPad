@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.2] - 2026-10-23
+
+### Added
+- **Ctrl+H toggles hide/show for all sticky notes**, from the editor or from a note.
+- Notes **fade in smoothly** when they come back from being hidden.
+
+### Changed
+- **Find & Replace moved from Ctrl+H to Ctrl+R**, so Ctrl+H can hide/show notes. Replace is still on the Edit menu and inside the Find dialog.
+
+### Fixed
+- A note's **size and position no longer shift (or grow) after minimizing and restoring** it from the taskbar; the saved size stays correct.
 ## [2.0.1] - 2026-10-23
 
 ### Fixed
