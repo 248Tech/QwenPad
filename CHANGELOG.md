@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.0.3] - 2026-10-23
+
+### Fixed
+- **Image Studio no longer refuses ordinary prompts by mistake.** The content check now matches whole words, so prompts like "girlfriend in lingerie", "babydoll", "a nude study" or "boy band poster" go through. The only prompts refused are ones that combine a child/minor reference with sexual content.
+
 ## [2.0.2] - 2026-10-23
 
 ### Added

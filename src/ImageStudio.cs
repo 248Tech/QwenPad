@@ -159,7 +159,7 @@ namespace QwenPad
             if (worker != null) return;
             string p = prompt.Text.Trim();
             if (p.Length == 0 && refs.Count == 0) { SetStatus("Enter a prompt first."); return; }
-            if (ContentBlock.IsBlocked(p)) { MessageBox.Show(this, "That request can't be generated.", "Image Studio", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (ContentBlock.IsBlocked(p)) { MessageBox.Show(this, "This prompt combines a child/minor reference with sexual content, which can't be generated. This is the only kind of prompt QwenPad refuses.", "Image Studio", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
 
             SetBusy(true);
             SetStatus("Loading the image model… (this frees the GPU from the text model)");
@@ -415,21 +415,40 @@ namespace QwenPad
         }
     }
 
-    /// <summary>The one hard content limit: refuse prompts that sexualize minors. Everything else is allowed.</summary>
+    /// <summary>
+    /// The one hard content limit: refuse prompts that sexualize minors. Everything else is allowed. Terms are matched
+    /// as whole words, so ordinary prompts aren't blocked by coincidence (e.g. "girlfriend" or "babydoll" don't trip
+    /// "girl"/"baby", and only a minor word together with a sexual word is refused).
+    /// </summary>
     static class ContentBlock
     {
-        static readonly string[] Minor = { "child", "children", "kid", "kids", "toddler", "infant", "baby", "preteen", "pre-teen", "minor", "underage", "teen", "teenage", "boy", "girl", "schoolgirl", "schoolboy", "loli", "shota", "year old", "yo " };
-        static readonly string[] Sexual = { "nude", "naked", "nsfw", "sex", "sexual", "porn", "explicit", "erotic", "lewd", "hentai", "genital", "nipple", "undress", "lingerie", "topless", "cum", "aroused" };
+        static readonly string[] Minor = { "child", "children", "kid", "kids", "toddler", "toddlers", "infant", "infants", "baby", "babies", "preteen", "pre-teen", "minor", "minors", "underage", "teen", "teens", "teenage", "teenager", "teenagers", "boy", "boys", "girl", "girls", "schoolgirl", "schoolboy", "loli", "shota" };
+        static readonly string[] Sexual = { "nude", "nudes", "naked", "nsfw", "sex", "sexual", "sexy", "porn", "pornographic", "explicit", "erotic", "lewd", "hentai", "genital", "genitals", "nipple", "nipples", "undress", "undressed", "lingerie", "topless", "cum", "aroused", "orgasm" };
 
         public static bool IsBlocked(string prompt)
         {
             if (string.IsNullOrEmpty(prompt)) return false;
-            string p = " " + prompt.ToLowerInvariant() + " ";
-            bool minor = false, sexual = false;
-            foreach (string m in Minor) if (p.Contains(m)) { minor = true; break; }
+            string p = prompt.ToLowerInvariant();
+            bool minor = false;
+            foreach (string m in Minor) if (HasWord(p, m)) { minor = true; break; }
             if (!minor) return false;
-            foreach (string s in Sexual) if (p.Contains(s)) { sexual = true; break; }
-            return sexual;
+            foreach (string s in Sexual) if (HasWord(p, s)) return true;
+            return false;
+        }
+
+        /// <summary>True if term appears as a whole word (not inside a larger word).</summary>
+        static bool HasWord(string text, string term)
+        {
+            int i = 0;
+            while ((i = text.IndexOf(term, i, StringComparison.Ordinal)) >= 0)
+            {
+                bool leftOk = i == 0 || !(char.IsLetterOrDigit(text[i - 1]) || text[i - 1] == '-');
+                int end = i + term.Length;
+                bool rightOk = end >= text.Length || !(char.IsLetterOrDigit(text[end]) || text[end] == '-');
+                if (leftOk && rightOk) return true;
+                i = end;
+            }
+            return false;
         }
     }
 }
