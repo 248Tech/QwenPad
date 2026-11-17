@@ -25,3 +25,30 @@ New-Item -ItemType Directory -Force $sdDest | Out-Null
 if (-not (Test-Path $sdOut)) { Write-Host "Downloading $sdZip"; curl.exe -L --fail -o $sdOut "https://github.com/leejet/stable-diffusion.cpp/releases/download/$SdBuild/$sdZip"; if ($LASTEXITCODE) { throw "Download failed: $sdZip" } }
 Expand-Archive -Force $sdOut $sdDest
 Write-Host "stable-diffusion.cpp $SdBuild ready in $sdDest"
+
+# CCTV notes: mediamtx + ffmpeg (LGPL build), and RTSPanda built from source (needs Go and Node.js).
+$mtxVer = 'v1.21.3'
+$rtDest = Join-Path $root 'runtime\rtspanda'
+New-Item -ItemType Directory -Force (Join-Path $rtDest 'mediamtx'), (Join-Path $root 'runtime\ffmpeg') | Out-Null
+$mtxZip = Join-Path $tmp "mediamtx_$mtxVer.zip"
+if (-not (Test-Path $mtxZip)) { curl.exe -L --fail -o $mtxZip "https://github.com/bluenviron/mediamtx/releases/download/$mtxVer/mediamtx_${mtxVer}_windows_amd64.zip"; if ($LASTEXITCODE) { throw 'Download failed: mediamtx' } }
+Expand-Archive -Force $mtxZip (Join-Path $rtDest 'mediamtx')
+$ffZip = Join-Path $tmp 'ffmpeg-lgpl.zip'
+if (-not (Test-Path $ffZip)) { curl.exe -L --fail -o $ffZip 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl.zip'; if ($LASTEXITCODE) { throw 'Download failed: ffmpeg' } }
+$ffTmp = Join-Path $tmp 'ffmpeg-x'; Remove-Item $ffTmp -Recurse -Force -ErrorAction SilentlyContinue
+Expand-Archive -Force $ffZip $ffTmp
+Copy-Item (Get-ChildItem $ffTmp -Recurse -Filter ffmpeg.exe | Select-Object -First 1).FullName (Join-Path $root 'runtime\ffmpeg\ffmpeg.exe') -Force
+# RTSPanda: clone (or reuse -RtspandaDir) and run its build.ps1
+$rtSrc = if ($env:RTSPANDA_DIR) { $env:RTSPANDA_DIR } else { Join-Path $tmp 'RTSPanda' }
+if (-not (Test-Path $rtSrc)) { git clone --depth 1 https://github.com/248Tech/RTSPanda.git $rtSrc; if ($LASTEXITCODE) { throw 'git clone failed' } }
+Push-Location $rtSrc
+try { Push-Location frontend; npm ci; Pop-Location; & .\build.ps1; if (-not (Test-Path backend\rtspanda.exe)) { throw 'RTSPanda build failed' } }
+finally { Pop-Location }
+Copy-Item (Join-Path $rtSrc 'backend\rtspanda.exe') $rtDest -Force
+Write-Host "RTSPanda, mediamtx and ffmpeg ready in runtime\rtspanda and runtime\ffmpeg (set RTSPANDA_DIR to reuse an existing checkout)"
+
+# yt-dlp (YouTube links in CCTV notes)
+$ytDest = Join-Path $root 'runtime\ytdlp'
+New-Item -ItemType Directory -Force $ytDest | Out-Null
+curl.exe -L --fail -o (Join-Path $ytDest 'yt-dlp.exe') 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
+if ($LASTEXITCODE) { throw 'Download failed: yt-dlp' }

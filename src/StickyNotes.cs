@@ -75,6 +75,13 @@ namespace QwenPad
         static readonly Color[] InkColors = { Color.Empty, Color.FromArgb(220, 50, 47), Color.FromArgb(38, 110, 220), Color.FromArgb(40, 160, 70), Color.FromArgb(255, 200, 0) };
         static readonly string[] InkNames = { "Ink (black / white in dark mode)", "Red", "Blue", "Green", "Highlighter yellow" };
         bool sketchOn;   // own flag: a child's Visible reads false while the note itself is hidden
+        // CCTV: a live RTSP picture (through RTSPanda) under the title. The camera lives in notes\<id>\camera.txt.
+        readonly EdgeCctvView cctv = new EdgeCctvView();
+        CctvCamera camera;
+        ToolStripMenuItem miCctvSnap, miCctvDash, miCctvRemove;
+        /// <summary>Set by MainForm so notes can read the CCTV paths and frame rate.</summary>
+        internal static Settings CctvSettings;
+        internal bool IsCctv { get { return camera != null; } }
         internal bool HasSketch { get { return sketchOn; } }
 
         internal DateTime CreatedOn { get; set; }
@@ -230,6 +237,11 @@ namespace QwenPad
             Controls.Add(gallery);
             Controls.Add(formatBar);
             Controls.Add(drawBar);
+            cctv.Dock = DockStyle.Top;
+            cctv.Height = Font.Height * 8;
+            cctv.Visible = false;
+            cctv.FrameArrived += delegate { UpdateCctvLayout(); };
+            Controls.Add(cctv);
             Controls.Add(titleRow);
             // The design's ruled lines follow the text area, so repaint when it moves or resizes.
             EventHandler relayout = delegate { if (Design > 0) Invalidate(true); };
@@ -287,6 +299,9 @@ namespace QwenPad
                 new ToolStripMenuItem("Move &Back", null, delegate { Layer(LayerOp.Backward); }) { ShortcutKeyDisplayString = "Ctrl+Scroll down" },
                 new ToolStripMenuItem("Send to Bac&k", null, delegate { Layer(LayerOp.Back); })
             });
+            miCctvSnap = new ToolStripMenuItem("📷 Camera &Snapshot to Note", null, delegate { CctvSnapshot(); });
+            miCctvDash = new ToolStripMenuItem("Open RTSPanda &Dashboard", null, delegate { OpenCctvDashboard(); });
+            miCctvRemove = new ToolStripMenuItem("Remove &Camera", null, delegate { RemoveCctv(); });
             menu.Items.AddRange(new ToolStripItem[]
             {
                 new ToolStripSeparator(),
@@ -294,6 +309,8 @@ namespace QwenPad
                 new ToolStripMenuItem("Add &Image or GIF...", null, delegate { ChooseImage(); }),
                 new ToolStripMenuItem("🖼 &Generate Image...", null, delegate { if (ImageStudioHook != null) ImageStudioHook(this, null); }),
                 new ToolStripMenuItem("✏ &Draw (pen, brush, eraser)", null, delegate { SetDrawMode(!drawMode); }),
+                new ToolStripMenuItem("📹 CC&TV Camera...", null, delegate { SetupCctv(); }),
+                miCctvSnap, miCctvDash, miCctvRemove,
                 new ToolStripSeparator(), miTop, miOpacity, miArt, miLayer,
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("☰ Notes &List...", null, delegate { mgr.ShowList(this); }),
@@ -310,6 +327,7 @@ namespace QwenPad
                 for (int i = 0; i < ColorNames.Length; i++) ((ToolStripMenuItem)menu.Items[i]).Checked = i == ColorIndex;
                 foreach (ToolStripMenuItem o in miOpacity.DropDownItems) o.Checked = (int)o.Tag == OpacityPercent;
                 miArt.Enabled = Design > 0;
+                miCctvSnap.Visible = miCctvDash.Visible = miCctvRemove.Visible = IsCctv;
                 foreach (ToolStripMenuItem o in miArt.DropDownItems) o.Checked = (int)o.Tag == ArtStrength;
                 foreach (var o in designItems) o.Checked = (int)o.Tag == Design;
                 for (int i = 0; i < ColorNames.Length; i++) ((ToolStripMenuItem)menu.Items[i]).Checked = Design == 0 && i == ColorIndex;
@@ -320,6 +338,7 @@ namespace QwenPad
             Move += delegate { if (SuppressMoveSave || wasMinimized || WindowState != FormWindowState.Normal) return; DesiredBounds = Bounds; mgr.MarkDirty(this); };
             Resize += delegate
             {
+                UpdateCctvRun();
                 if (WindowState == FormWindowState.Minimized) { wasMinimized = true; return; }
                 if (wasMinimized)
                 {
@@ -335,10 +354,10 @@ namespace QwenPad
                     return;
                 }
                 if (!SuppressMoveSave && WindowState == FormWindowState.Normal) DesiredBounds = Bounds;
-                mgr.MarkDirty(this); LayoutGallery(); Invalidate();
+                mgr.MarkDirty(this); LayoutGallery(); UpdateCctvLayout(); Invalidate();
             };
             Shown += delegate { AutoFit(); ApplyPin(); if (DesiredBounds.IsEmpty) DesiredBounds = Bounds; };
-            VisibleChanged += delegate { if (Visible) ApplyPin(); };
+            VisibleChanged += delegate { if (Visible) ApplyPin(); UpdateCctvRun(); };
             ResizeBegin += delegate { sizeAtResizeBegin = Size; };
             ResizeEnd += delegate
             {
@@ -1044,6 +1063,113 @@ namespace QwenPad
 
         #endregion
 
+        #region CCTV
+
+        string CameraFile { get { return Path.Combine(ImageDir, "camera.txt"); } }
+
+        void LoadCctv()
+        {
+            var c = CctvCamera.Load(CameraFile);
+            if (c != null) ApplyCamera(c, false);
+        }
+
+        /// <summary>Asks for the camera's name and RTSP address, then turns this note into a live CCTV note.</summary>
+        internal void SetupCctv()
+        {
+            using (var dlg = new CctvDialog(camera != null ? camera.Name : TitleText, camera != null ? camera.Url : ""))
+            {
+                if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                var c = new CctvCamera { Name = dlg.CameraName, Url = dlg.CameraUrl };
+                if (c.Name.Length == 0) c.Name = "Camera";
+                ApplyCamera(c, true);
+            }
+        }
+
+        void ApplyCamera(CctvCamera c, bool userAction)
+        {
+            camera = c;
+            if (userAction)
+            {
+                c.Save(CameraFile);
+                if (TitleText.Length == 0) TitleText = c.Name;
+                AutoTitleTried = true;
+                Edited(false);
+            }
+            cctv.Visible = true;
+            cctv.Configure(CctvSettings ?? new Settings(), c.Name, c.Url);
+            UpdateCctvLayout();
+            UpdateCctvRun();
+            AutoFit();
+        }
+
+        void RemoveCctv()
+        {
+            if (camera == null) return;
+            camera = null;
+            cctv.SetWanted(false);
+            cctv.Visible = false;
+            try { File.Delete(CameraFile); } catch { }
+            Edited(false);
+            AutoFit();
+        }
+
+        /// <summary>The picture is only pulled while the note is on screen, so hidden or minimized notes cost nothing.</summary>
+        void UpdateCctvRun()
+        {
+            cctv.SetWanted(camera != null && Visible && WindowState != FormWindowState.Minimized);
+        }
+
+        /// <summary>Keeps the picture at the camera's aspect ratio across the note's width.</summary>
+        void UpdateCctvLayout()
+        {
+            if (camera == null || !IsHandleCreated) return;
+            int w = Math.Max(40, ClientSize.Width - Padding.Horizontal);
+            int h = (int)(w / Math.Max(0.5, Math.Min(4.0, cctv.Aspect)));
+            h = Math.Max(Font.Height * 4, Math.Min(h, Screen.FromControl(this).WorkingArea.Height * 2 / 3));
+            if (cctv.Height == h) return;
+            cctv.Height = h;
+            AutoFit();
+        }
+
+        void CctvSnapshot()
+        {
+            var bmp = cctv.Snapshot();
+            if (bmp == null)
+            {
+                MessageBox.Show(this, "There's no picture yet to save.", "Sticky Notes", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            using (bmp) AddClipboardImage(bmp);
+        }
+
+        /// <summary>Opens RTSPanda's own web dashboard (recordings, all cameras); its login asks for the token, which goes on the clipboard.</summary>
+        void OpenCctvDashboard()
+        {
+            var s = CctvSettings ?? new Settings();
+            if (!CctvHost.Installed(s))
+            {
+                MessageBox.Show(this, "RTSPanda isn't installed (runtime\\rtspanda). Run tools\\fetch-runtime.ps1.", "Sticky Notes", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                string err = CctvHost.EnsureRunning(s);
+                try
+                {
+                    BeginInvoke((Action)delegate
+                    {
+                        if (err != null) { MessageBox.Show(this, err, "Sticky Notes", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                        try { Clipboard.SetText(CctvHost.Token()); } catch { }
+                        try { Process.Start(CctvHost.DashboardUrl(s)); } catch { }
+                        MessageBox.Show(this, "The RTSPanda dashboard opened in your browser.\n\nIts sign-in token was copied to your clipboard: paste it into the login box.", "Sticky Notes", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    });
+                }
+                catch { }
+            });
+        }
+
+        #endregion
+
         #region Images
 
         string ImageDir { get { return Path.Combine(NoteManager.Dir, Id); } }
@@ -1282,7 +1408,7 @@ namespace QwenPad
         }
 
         /// <summary>True when deleting the note would lose something: text, a title, images or a drawing.</summary>
-        internal bool HasContent { get { return Body.Text.Trim().Length > 0 || TitleText.Length > 0 || images.Count > 0 || (sketchOn && sketch.HasInk); } }
+        internal bool HasContent { get { return Body.Text.Trim().Length > 0 || TitleText.Length > 0 || images.Count > 0 || (sketchOn && sketch.HasInk) || IsCctv; } }
 
         #endregion
 
@@ -1351,7 +1477,7 @@ namespace QwenPad
         int NeededHeight()
         {
             int text = Math.Max(contentHeight, Body.Font.Height);
-            return header.Height + titleRow.Height + formatBar.Height + (images.Count > 0 ? gallery.Height : 0) + (sketchOn ? sketch.Height : 0)
+            return header.Height + titleRow.Height + formatBar.Height + (images.Count > 0 ? gallery.Height : 0) + (sketchOn ? sketch.Height : 0) + (IsCctv ? cctv.Height : 0)
                  + GripBottom + text + Body.Font.Height / 2 + 6;
         }
 
@@ -1365,7 +1491,7 @@ namespace QwenPad
             var b = !DesiredBounds.IsEmpty ? DesiredBounds : (WindowState == FormWindowState.Normal ? Bounds : RestoreBounds);
             return string.Format(CultureInfo.InvariantCulture, "#note x={0} y={1} w={2} h={3} bh={4} color={5} top={6} visible={7} op={8} at={9} sk={10} sh={11} design={12}",
                 b.X, b.Y, b.Width, b.Height, baseHeight > 0 ? baseHeight : b.Height, ColorIndex, TopMost ? 1 : 0,
-                WantsVisible ? 1 : 0, OpacityPercent, AutoTitleTried ? 1 : 0, sketchOn && sketch.HasInk ? 1 : 0, sketchHeight, Design) + " art=" + ArtStrength;
+                WantsVisible ? 1 : 0, OpacityPercent, AutoTitleTried ? 1 : 0, sketchOn && sketch.HasInk ? 1 : 0, sketchHeight, Design) + " art=" + ArtStrength + " cctv=" + (IsCctv ? 1 : 0);
         }
 
         internal void ApplyMeta(string line)
@@ -1392,6 +1518,8 @@ namespace QwenPad
             int design, art;
             if (v.TryGetValue("design", out design) && design > 0) SetDesign(design);
             if (v.TryGetValue("art", out art)) SetArtStrength(art);
+            int cc;
+            if (v.TryGetValue("cctv", out cc) && cc == 1) LoadCctv();
             if (!OnScreen(Bounds)) Location = new Point(Screen.PrimaryScreen.WorkingArea.Right - Width - 40, Screen.PrimaryScreen.WorkingArea.Top + 40);
         }
 

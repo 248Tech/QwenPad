@@ -72,7 +72,10 @@ namespace QwenPad
         }
 
         /// <summary>Starts any server exe hidden, logging its output. extraPath is prepended to its PATH (for shared DLLs).</summary>
-        public string StartProcess(string exe, string args, string extraPath)
+        public string StartProcess(string exe, string args, string extraPath) { return StartProcess(exe, args, extraPath, null); }
+
+        /// <summary>As above, plus extra environment variables for the child (e.g. RTSPanda's PORT and AUTH_TOKEN).</summary>
+        public string StartProcess(string exe, string args, string extraPath, System.Collections.Generic.IDictionary<string, string> env)
         {
             if (Running) return null;
             if (!File.Exists(exe)) return displayName + " was not found at:\n" + exe;
@@ -84,6 +87,8 @@ namespace QwenPad
                 RedirectStandardError = true,
                 WorkingDirectory = Path.GetDirectoryName(exe)
             };
+            if (env != null)
+                foreach (var kv in env) psi.EnvironmentVariables[kv.Key] = kv.Value;
             if (!string.IsNullOrEmpty(extraPath))
                 psi.EnvironmentVariables["PATH"] = extraPath + ";" + Environment.GetEnvironmentVariable("PATH");
 
@@ -133,6 +138,14 @@ namespace QwenPad
         void CloseLog()
         {
             lock (logLock) { if (log != null) { try { log.Dispose(); } catch { } log = null; } }
+        }
+
+        static readonly ServerManager sharedJobOwner = new ServerManager("shared.log", "child process");
+
+        /// <summary>Ties a helper process (e.g. a CCTV ffmpeg) to QwenPad's lifetime: it is killed if QwenPad exits or crashes.</summary>
+        internal static void KillOnExit(Process p)
+        {
+            lock (sharedJobOwner) sharedJobOwner.AddToJob(p);
         }
 
         void AddToJob(Process p)

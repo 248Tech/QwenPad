@@ -101,6 +101,7 @@ namespace QwenPad
             noteLlm = new LlmClient(settings);
             titleLlm = new LlmClient(settings);
             imageClient = new ImageClient(settings);
+            StickyNote.CctvSettings = settings;   // before the notes load: CCTV notes read the RTSPanda/ffmpeg paths from it
             notes = new NoteManager(InsertFromNote, AskInNote, AutoTitleNote);
             Theme.SetMode(settings.Theme);
             StickyNote.ClickableImages = settings.ClickableImages;
@@ -281,6 +282,7 @@ namespace QwenPad
             {
                 Item("&New Sticky Note", Keys.Control | Keys.Shift | Keys.M, delegate { if (NotesAvailable()) notes.New("", Bounds); }),
                 Item("Note from &Selection", Keys.None, delegate { if (NotesAvailable()) notes.New(editor.SelectedText, Bounds); }),
+                Item("📹 New &CCTV Note...", Keys.None, delegate { NewCctvNote(); }),
                 Item("✦ Su&mmarize to Note", Keys.None, delegate { SummarizeToNote(); }),
                 new ToolStripSeparator(),
                 Item("Show &All Notes", Keys.None, delegate { notes.ShowAll(); }),
@@ -1536,6 +1538,16 @@ namespace QwenPad
         }
 
         /// <summary>Has Qwen condense the selection (or document) into a new sticky note, streaming into it.</summary>
+        /// <summary>A sticky note showing a live RTSP camera (through RTSPanda). Cancelling the dialog discards the empty note.</summary>
+        void NewCctvNote()
+        {
+            if (!NotesAvailable()) return;
+            var n = notes.New("", Bounds);
+            if (n == null) return;
+            n.SetupCctv();
+            if (!n.IsCctv) notes.Delete(n);
+        }
+
         void SummarizeToNote()
         {
             if (!NotesAvailable() || !EnsureReady()) return;

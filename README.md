@@ -137,6 +137,12 @@ Already have a `.gguf` model? Drop it into the `models\` folder and pick it from
 
 With nothing selected, rewrite actions apply to the whole document. Results stream in live, and every AI edit is a **single undo step**.
 
+## 📹 CCTV notes
+
+Make a sticky note that shows a live RTSP camera, or a YouTube live stream or video (paste its link instead). **Notes > New CCTV Note...**, enter a name and the stream address (for example `rtsp://user:password@192.168.1.20:554/stream1`), and the note plays the camera. Resize it like any note; right-click for a snapshot into the note, the RTSPanda dashboard, or to remove the camera.
+
+Streaming goes through [RTSPanda](https://github.com/248Tech/RTSPanda), which QwenPad runs hidden in viewer mode, so one camera connection can feed several notes. The stream only runs while the note is visible. The camera address (with any password) is saved in the note's folder, so treat note backups accordingly.
+
 ## 🖼 Image generation & editing
 
 **Qwen > Image Studio** (Ctrl+Shift+J) makes pictures from a prompt and edits ones you give it, with the **Qwen-Image-2.1** model running locally through stable-diffusion.cpp — nothing is uploaded.

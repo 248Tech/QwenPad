@@ -56,3 +56,12 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+---
+
+## CCTV notes (optional components in runtime/rtspanda and runtime/ffmpeg)
+
+- **RTSPanda**, https://github.com/248Tech/RTSPanda (MIT)
+- **mediamtx**, https://github.com/bluenviron/mediamtx (MIT), bundled with RTSPanda
+- **FFmpeg** (LGPL build from https://github.com/BtbN/FFmpeg-Builds), https://ffmpeg.org. Source and licence terms are available at those sites.
+- **yt-dlp**, https://github.com/yt-dlp/yt-dlp (Unlicense), resolves YouTube links for CCTV notes

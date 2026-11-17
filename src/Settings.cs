@@ -31,6 +31,13 @@ namespace QwenPad
         public string ImageOutputDir = "images";
         public double Temperature = 0.7;
 
+        // CCTV notes: RTSPanda (RTSP relay + camera registry) and ffmpeg (decodes the stream into the note)
+        public string CctvExe = @"runtime\rtspanda\rtspanda.exe";
+        public int CctvPort = 8180;
+        public string FfmpegExe = @"runtime\ffmpeg\ffmpeg.exe";
+        public int CctvFps = 10;
+        public string YtDlpExe = @"runtimeytdlpyt-dlp.exe";   // resolves YouTube links for CCTV notes
+
         // Editor
         public string FontName = "Consolas";
         public float FontSize = 11f;
@@ -102,6 +109,11 @@ namespace QwenPad
                         case "ImageIdleMinutes": if (int.TryParse(v, NumberStyles.Integer, Inv, out n) && n > 0) s.ImageIdleMinutes = n; break;
                         case "ImageSize": s.ImageSize = v; break;
                         case "ImageOutputDir": s.ImageOutputDir = v; break;
+                        case "CctvExe": s.CctvExe = v; break;
+                        case "CctvPort": if (int.TryParse(v, NumberStyles.Integer, Inv, out n) && n > 0 && n < 65536) s.CctvPort = n; break;
+                        case "YtDlpExe": s.YtDlpExe = v; break;
+                        case "FfmpegExe": s.FfmpegExe = v; break;
+                        case "CctvFps": if (int.TryParse(v, NumberStyles.Integer, Inv, out n) && n >= 1 && n <= 30) s.CctvFps = n; break;
                         case "FontName": s.FontName = v; break;
                         case "FontSize": if (float.TryParse(v, NumberStyles.Float, Inv, out f) && f > 1) s.FontSize = f; break;
                         case "FontStyle": if (int.TryParse(v, NumberStyles.Integer, Inv, out n)) s.FontStyle = (FontStyle)n; break;
@@ -147,6 +159,12 @@ namespace QwenPad
             sb.AppendLine("ImageIdleMinutes=" + ImageIdleMinutes.ToString(Inv));
             sb.AppendLine("ImageSize=" + ImageSize);
             sb.AppendLine("ImageOutputDir=" + ImageOutputDir);
+            sb.AppendLine("[CCTV]");
+            sb.AppendLine("CctvExe=" + CctvExe);
+            sb.AppendLine("CctvPort=" + CctvPort.ToString(Inv));
+            sb.AppendLine("FfmpegExe=" + FfmpegExe);
+            sb.AppendLine("YtDlpExe=" + YtDlpExe);
+            sb.AppendLine("CctvFps=" + CctvFps.ToString(Inv));
             sb.AppendLine("[Editor]");
             sb.AppendLine("FontName=" + FontName);
             sb.AppendLine("FontSize=" + FontSize.ToString(Inv));

@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.1.0] - 2026-11-12
+
+### Added
+- **CCTV notes.** Notes > New CCTV Note (or right-click any note > CCTV Camera) turns a sticky note into a live view of an RTSP camera. Right-click for a snapshot into the note, to open the RTSPanda dashboard, or to remove the camera.
+- Powered by [RTSPanda](https://github.com/248Tech/RTSPanda): QwenPad runs it hidden in viewer mode (token-protected, loopback API) and its relay serves each camera once, however many notes watch it. ffmpeg decodes the picture. If RTSPanda isn't installed, notes connect to the camera directly.
+- **YouTube links work too.** Paste a youtube.com / youtu.be address (live stream or video) instead of an RTSP address; yt-dlp resolves it and ffmpeg plays it. Videos loop. Stream links expire, so QwenPad re-resolves them on every reconnect.
+- Streams only run while the note is visible and not minimized, and reconnect automatically.
+- New settings in QwenPad.ini: CctvExe, CctvPort, FfmpegExe, YtDlpExe, CctvFps.
+
 ## [2.0.3] - 2026-10-23
 
 ### Fixed

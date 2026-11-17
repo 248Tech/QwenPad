@@ -48,6 +48,16 @@ if (Test-Path (Join-Path $src 'runtime\sd\sd-server.exe')) {
     }
 } else { Write-Warning 'runtime\sd not found; the release will not include image generation. Run tools\fetch-runtime.ps1.' }
 
+# CCTV notes (RTSPanda + mediamtx + ffmpeg), if fetched.
+foreach ($part in 'rtspanda', 'ffmpeg', 'ytdlp') {
+    $from = Join-Path $src (Join-Path 'runtime' $part)
+    if (Test-Path $from) {
+        Write-Host "== Runtime ($part)"
+        robocopy $from (Join-Path $Dest (Join-Path 'runtime' $part)) /E /NFL /NDL /NJH /NJS /NP | Out-Null
+        if ($LASTEXITCODE -ge 8) { throw "Copying $part failed" }
+    } else { Write-Warning "runtime\$part not found; the release will not include CCTV notes. Run tools\fetch-runtime.ps1." }
+}
+
 New-Item -ItemType Directory -Force (Join-Path $Dest 'models'), (Join-Path $Dest 'models\image'), (Join-Path $Dest 'notes') | Out-Null
 Set-Content (Join-Path $Dest 'models\image\PUT-IMAGE-MODELS-HERE.txt') 'Qwen > Image Studio downloads the Qwen-Image model here on first use (Qwen > Image Model > Download Image Model).'
 $defaultModel = 'Qwen3.5-9B-Q4_K_M.gguf'
